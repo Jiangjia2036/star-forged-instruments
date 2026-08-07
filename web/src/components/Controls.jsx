@@ -1,23 +1,32 @@
 function Controls() {
   return (
-    <div>
+    <section>
+
       <h2>Controls</h2>
 
-      <button>Warp</button>
+      <div className="controls">
 
-      <button>Echo</button>
+        <button>Warp</button>
 
-      <button>Effect3?</button>
+        <button>Echo</button>
 
-      <label>effect Strength</label>
+        <button>Chorus</button>
 
-<input
-  type="range"
-  min="0"
-  max="100"
-/>
+      </div>
 
-    </div>
+      <div className="slider">
+
+        <label>Effect Strength</label>
+
+        <input
+          type="range"
+          min="0"
+          max="100"
+        />
+
+      </div>
+
+    </section>
   );
 }
 

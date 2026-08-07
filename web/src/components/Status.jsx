@@ -1,15 +1,16 @@
 function Status() {
   return (
-    <div>
+    <section>
+
       <h2>Status</h2>
 
-      <p>Connected: No</p>
+      <p>Connected : No</p>
 
-      <p>Current Octave: 1</p>
+      <p>Current Note : --</p>
 
-      <p>Volume: 50%</p>
+      <p>Current Effect : None</p>
 
-    </div>
+    </section>
   );
 }
 
