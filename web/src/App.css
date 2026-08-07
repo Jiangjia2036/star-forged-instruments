@@ -128,3 +128,8 @@ h2 {
     width: 300px;
     margin-top: 10px;
 }
+
+.controls button.active {
+    background-color: #2b7cff;
+    color: white;
+}

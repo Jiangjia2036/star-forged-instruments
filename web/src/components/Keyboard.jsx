@@ -1,9 +1,6 @@
-import { useState, useEffect, useRef } from "react";
-import * as Tone from "tone";
+import { useState } from "react";
 
-function Keyboard() {
-  const synth = useRef(new Tone.Synth().toDestination());
-
+function Keyboard({ synth }) {
   const scales = {
     C: ["C4", "D4", "E4", "F4", "G4", "A4", "B4", "C5"],
     D: ["D4", "E4", "F#4", "G4", "A4", "B4", "C#5", "D5"],
@@ -11,14 +8,9 @@ function Keyboard() {
   };
 
   const [scale, setScale] = useState("C");
-  const [volume, setVolume] = useState(-10);
-
-  useEffect(() => {
-    synth.current.volume.value = volume;
-  }, [volume]);
 
   const startNote = async (note) => {
-    await Tone.start();
+    await synth.current.context.resume();
     synth.current.triggerAttack(note);
   };
 
@@ -69,20 +61,6 @@ function Keyboard() {
             {note.replace("4", "").replace("5", "")}
           </button>
         ))}
-      </div>
-
-      <div className="volume-control">
-        <label>Volume: {volume} dB</label>
-
-        <br />
-
-        <input
-          type="range"
-          min="-40"
-          max="0"
-          value={volume}
-          onChange={(e) => setVolume(Number(e.target.value))}
-        />
       </div>
     </section>
   );
