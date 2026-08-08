@@ -4,6 +4,7 @@ import * as Tone from "tone";
 
 import Keyboard from "./components/Keyboard";
 import Controls from "./components/Controls";
+import Visualizer from "./components/Visualizer";
 
 function App() {
   const delay = useRef(
@@ -15,30 +16,41 @@ function App() {
   );
 
   const [volume, setVolume] = useState(-10);
-
   const [effectStrength, setEffectStrength] = useState(0);
+  const [selectedEffect, setSelectedEffect] = useState("");
 
   useEffect(() => {
     synth.current.volume.value = volume;
   }, [volume]);
 
   useEffect(() => {
-    delay.current.wet.value = effectStrength / 100;
-  }, [effectStrength]);
+    if (selectedEffect === "Echo") {
+      delay.current.wet.value = effectStrength / 100;
+    } else {
+      delay.current.wet.value = 0;
+    }
+  }, [effectStrength, selectedEffect]);
 
   return (
     <div className="app">
-      <h1>Star Forged Instruments</h1>
+      <Visualizer />
 
-      <Keyboard synth={synth} />
+      <div className="ui">
+        <h1>Star Forged Instruments</h1>
 
-      <Controls
-        volume={volume}
-        setVolume={setVolume}
-        effectStrength={effectStrength}
-        setEffectStrength={setEffectStrength}
-        delay={delay}
-      />
+        <div className="bottom-ui">
+          <Keyboard synth={synth} />
+
+          <Controls
+          volume={volume}
+          setVolume={setVolume}
+          effectStrength={effectStrength}
+          setEffectStrength={setEffectStrength}
+          selectedEffect={selectedEffect}
+          setSelectedEffect={setSelectedEffect}
+        />
+        </div>
+      </div>
     </div>
   );
 }

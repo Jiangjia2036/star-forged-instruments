@@ -1,35 +1,59 @@
-import { useState } from "react";
-
 function Controls({
   volume,
   setVolume,
   effectStrength,
   setEffectStrength,
+  selectedEffect,
+  setSelectedEffect,
 }) {
-  const [selectedEffect, setSelectedEffect] = useState("Echo");
+  function handleEffectClick(effect) {
+    if (selectedEffect === effect) {
+      setSelectedEffect("");
+    } else {
+      setSelectedEffect(effect);
+    }
+  }
 
   return (
-    <section>
+    <section className="controls-section">
       <h2>Controls</h2>
 
       <div className="controls">
         <button
-          className={selectedEffect === "Warp" ? "active" : ""}
-          onClick={() => setSelectedEffect("Warp")}
+          className={
+            selectedEffect === "Warp"
+              ? "active"
+              : ""
+          }
+          onClick={() =>
+            handleEffectClick("Warp")
+          }
         >
           Warp
         </button>
 
         <button
-          className={selectedEffect === "Echo" ? "active" : ""}
-          onClick={() => setSelectedEffect("Echo")}
+          className={
+            selectedEffect === "Echo"
+              ? "active"
+              : ""
+          }
+          onClick={() =>
+            handleEffectClick("Echo")
+          }
         >
           Echo
         </button>
 
         <button
-          className={selectedEffect === "Chorus" ? "active" : ""}
-          onClick={() => setSelectedEffect("Chorus")}
+          className={
+            selectedEffect === "Chorus"
+              ? "active"
+              : ""
+          }
+          onClick={() =>
+            handleEffectClick("Chorus")
+          }
         >
           Chorus
         </button>
@@ -43,7 +67,11 @@ function Controls({
           min="0"
           max="100"
           value={effectStrength}
-          onChange={(e) => setEffectStrength(Number(e.target.value))}
+          onChange={(e) =>
+            setEffectStrength(
+              Number(e.target.value)
+            )
+          }
         />
       </div>
 
@@ -55,7 +83,11 @@ function Controls({
           min="-40"
           max="0"
           value={volume}
-          onChange={(e) => setVolume(Number(e.target.value))}
+          onChange={(e) =>
+            setVolume(
+              Number(e.target.value)
+            )
+          }
         />
       </div>
     </section>

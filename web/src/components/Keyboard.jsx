@@ -19,7 +19,7 @@ function Keyboard({ synth }) {
   };
 
   return (
-    <section>
+    <section className="keyboard-section">
       <h2>Keyboard</h2>
 
       <div className="scale-selector">
@@ -27,21 +27,33 @@ function Keyboard({ synth }) {
 
         <div className="scale-buttons">
           <button
-            className={scale === "C" ? "scale-btn active" : "scale-btn"}
+            className={
+              scale === "C"
+                ? "scale-btn active"
+                : "scale-btn"
+            }
             onClick={() => setScale("C")}
           >
             C
           </button>
 
           <button
-            className={scale === "D" ? "scale-btn active" : "scale-btn"}
+            className={
+              scale === "D"
+                ? "scale-btn active"
+                : "scale-btn"
+            }
             onClick={() => setScale("D")}
           >
             D
           </button>
 
           <button
-            className={scale === "G" ? "scale-btn active" : "scale-btn"}
+            className={
+              scale === "G"
+                ? "scale-btn active"
+                : "scale-btn"
+            }
             onClick={() => setScale("G")}
           >
             G
@@ -49,18 +61,20 @@ function Keyboard({ synth }) {
         </div>
       </div>
 
-      <div className="keyboard">
-        {scales[scale].map((note) => (
-          <button
-            key={note}
-            className="key"
-            onMouseDown={() => startNote(note)}
-            onMouseUp={stopNote}
-            onMouseLeave={stopNote}
-          >
-            {note.replace("4", "").replace("5", "")}
-          </button>
-        ))}
+      <div className="keyboard-wrapper">
+        <div className="keyboard">
+          {scales[scale].map((note) => (
+            <button
+              key={note}
+              className="key"
+              onMouseDown={() => startNote(note)}
+              onMouseUp={stopNote}
+              onMouseLeave={stopNote}
+            >
+              {note.replace("4", "").replace("5", "")}
+            </button>
+          ))}
+        </div>
       </div>
     </section>
   );
