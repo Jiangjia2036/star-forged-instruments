@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { useRef, useEffect } from "react";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
 
-function Visualizer() {
+function Visualizer({ analyzer }) {
   const mountRef = useRef(null);
 
   const sceneRef = useRef(null);
@@ -14,34 +14,43 @@ function Visualizer() {
     const height = window.innerHeight;
 
     sceneRef.current = new THREE.Scene();
-    sceneRef.current.background = new THREE.Color(0x000000);
+    sceneRef.current.background =
+      new THREE.Color(0x000000);
 
-    cameraRef.current = new THREE.PerspectiveCamera(
-      75,
-      width / height,
-      0.1,
-      1000
-    );
+    cameraRef.current =
+      new THREE.PerspectiveCamera(
+        75,
+        width / height,
+        0.1,
+        1000
+      );
 
     cameraRef.current.position.set(0, 1, 6);
 
-    rendererRef.current = new THREE.WebGLRenderer({
-      antialias: true,
-      alpha: true,
-    });
+    rendererRef.current =
+      new THREE.WebGLRenderer({
+        antialias: true,
+        alpha: true,
+      });
 
-    rendererRef.current.setPixelRatio(window.devicePixelRatio);
+    rendererRef.current.setPixelRatio(
+      window.devicePixelRatio
+    );
 
-    rendererRef.current.setSize(width, height);
+    rendererRef.current.setSize(
+      width,
+      height
+    );
 
     mountRef.current.appendChild(
       rendererRef.current.domElement
     );
 
-    const ambientLight = new THREE.AmbientLight(
-      0xffffff,
-      2
-    );
+    const ambientLight =
+      new THREE.AmbientLight(
+        0xffffff,
+        2
+      );
 
     sceneRef.current.add(ambientLight);
 
@@ -132,14 +141,32 @@ function Visualizer() {
     function animate() {
       requestAnimationFrame(animate);
 
-      const t = clock.getElapsedTime();
+      const t =
+        clock.getElapsedTime();
 
       stars.rotation.y += 0.0005;
       stars.rotation.x += 0.0002;
 
       if (ufo) {
+        const values =
+          analyzer.current.getValue();
+
+        let sum = 0;
+
+        for (let i = 0; i < values.length; i++) {
+          sum += values[i] * values[i];
+        }
+
+        const rms = Math.sqrt(
+          sum / values.length
+        );
+
+        const audioMovement =
+          rms * 4;
+
         ufo.position.y =
-          Math.sin(t * 0.8) * 0.15;
+          Math.sin(t * 0.8) * 0.15 +
+          audioMovement;
 
         ufo.rotation.z =
           Math.sin(t * 0.6) * 0.06;
@@ -156,8 +183,11 @@ function Visualizer() {
     animate();
 
     function onWindowResize() {
-      const width = window.innerWidth;
-      const height = window.innerHeight;
+      const width =
+        window.innerWidth;
+
+      const height =
+        window.innerHeight;
 
       cameraRef.current.aspect =
         width / height;
@@ -196,7 +226,7 @@ function Visualizer() {
         );
       }
     };
-  }, []);
+  }, [analyzer]);
 
   return (
     <div
