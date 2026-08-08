@@ -2,8 +2,14 @@ import * as THREE from "three";
 import { useRef, useEffect } from "react";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
 
-function Visualizer({ analyzer }) {
+function Visualizer({ analyzer, activeNotes = [] }) {
   const mountRef = useRef(null);
+
+  // Pico notes no longer play through the browser synth, so the analyser sees
+  // nothing when the instrument is played. Mirroring the held notes into a ref
+  // lets the animation loop react to the instrument itself.
+  const notesRef = useRef([]);
+  notesRef.current = activeNotes;
 
   const sceneRef = useRef(null);
   const cameraRef = useRef(null);
@@ -144,8 +150,13 @@ function Visualizer({ analyzer }) {
       const t =
         clock.getElapsedTime();
 
-      stars.rotation.y += 0.0005;
-      stars.rotation.x += 0.0002;
+      // How hard the instrument is being played right now
+      const held = notesRef.current.length;
+      const drive = held > 0 ? 1 : 0;
+
+      // Stars accelerate while notes are held, so the whole field responds
+      stars.rotation.y += 0.0005 + held * 0.0016;
+      stars.rotation.x += 0.0002 + held * 0.0006;
 
       if (ufo) {
         const values =
@@ -161,17 +172,24 @@ function Visualizer({ analyzer }) {
           sum / values.length
         );
 
+        // Browser audio (mouse-played keys) plus the instrument itself
         const audioMovement =
-          rms * 4;
+          rms * 4 + drive * 0.55;
 
         ufo.position.y =
           Math.sin(t * 0.8) * 0.15 +
           audioMovement;
 
+        // Each held note tilts and spins it harder, so two notes look
+        // different from one
         ufo.rotation.z =
-          Math.sin(t * 0.6) * 0.06;
+          Math.sin(t * 0.6) * 0.06 +
+          Math.sin(t * 7) * 0.04 * held;
 
-        ufo.rotation.y += 0.002;
+        ufo.rotation.y += 0.002 + held * 0.02;
+
+        const pulse = 0.02 + drive * 0.004;
+        ufo.scale.set(pulse, pulse, pulse);
       }
 
       rendererRef.current.render(

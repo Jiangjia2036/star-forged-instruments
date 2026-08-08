@@ -88,6 +88,38 @@ function App() {
     }
   }, [effectStrength, selectedEffect]);
 
+
+  // Effects on the instrument itself. Warp changes the oscillator timbre and
+  // Chorus drives the tremolo, so all three buttons produce a distinct sound
+  // from the Pico rather than only affecting browser audio.
+  useEffect(() => {
+    if (!picoConnected) return;
+
+    const pico = serialRef.current;
+    if (!pico) return;
+
+    if (selectedEffect === "Warp") {
+      pico.send("FX_WAVE_SAW");
+      pico.send("FX_TREM_0");
+    } else if (selectedEffect === "Chorus") {
+      pico.send("FX_WAVE_SQUARE");
+      pico.send("FX_TREM_" + Math.round(effectStrength));
+    } else {
+      pico.send("FX_WAVE_SINE");
+      pico.send("FX_TREM_0");
+    }
+  }, [picoConnected, selectedEffect, effectStrength]);
+
+
+  // Digital volume control from the website, riding on the physical knob
+  useEffect(() => {
+    if (!picoConnected) return;
+
+    // slider is -40..0 dB; map to 0..100 for the Pico
+    const level = Math.round(((volume + 40) / 40) * 100);
+    serialRef.current?.send("VOL_" + Math.max(0, Math.min(100, level)));
+  }, [picoConnected, volume]);
+
   const updateActiveNotes = (notes) => {
     activeNotesRef.current = notes;
     setActiveNotes(notes);
@@ -235,7 +267,7 @@ function App() {
 
   return (
     <div className="app">
-      <Visualizer analyzer={analyzer} />
+      <Visualizer analyzer={analyzer} activeNotes={activeNotes} />
 
       {/* Song progress across the very top of the page */}
       <div className="top-progress">
