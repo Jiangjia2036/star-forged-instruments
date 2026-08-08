@@ -69,7 +69,20 @@
         let port;
         try {
           port = await navigator.serial.requestPort();
-          log("Port selected.", "ok");
+
+          const info = port.getInfo();
+          if (info.usbVendorId === 0x2e8a) {
+            log("Port selected: Raspberry Pi Pico (vendor 0x2E8A).", "ok");
+          } else {
+            log(
+              "WRONG DEVICE: vendor is " +
+                (info.usbVendorId
+                  ? "0x" + info.usbVendorId.toString(16)
+                  : "none, likely a Bluetooth port") +
+                ", not a Pico (0x2E8A). It will connect but stay silent.",
+              "err"
+            );
+          }
           await port.open({ baudRate: 115200 });
           log("Port opened.", "ok");
           try {

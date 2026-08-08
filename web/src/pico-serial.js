@@ -20,9 +20,59 @@ export class PicoSerial {
 
     this.port = null;
     this.reader = null;
+    this.writer = null;
 
     this.keepReading = false;
     this.readTask = null;
+  }
+
+
+  // =========================================================
+  // SEND A COMMAND TO THE PICO
+  // =========================================================
+
+  // Used by song playback to drive the Pico's own speaker. Newline
+  // terminated, matching the protocol the Pico prints.
+
+  async send(line) {
+
+    if (!this.port || !this.port.writable) {
+      return;
+    }
+
+    try {
+
+      if (!this.writer) {
+        this.writer = this.port.writable.getWriter();
+      }
+
+      await this.writer.write(
+        new TextEncoder().encode(line + "\n")
+      );
+
+    } catch (err) {
+
+      console.log(
+        "Pico send failed:",
+        err.message
+      );
+
+    }
+  }
+
+
+  releaseWriter() {
+
+    if (this.writer) {
+
+      try {
+        this.writer.releaseLock();
+      } catch {
+        // already released
+      }
+
+      this.writer = null;
+    }
   }
 
 
@@ -43,6 +93,26 @@ export class PicoSerial {
       // Must be called from a user action,
       // such as clicking "Connect Pico"
       this.port = await navigator.serial.requestPort();
+
+
+      // A Raspberry Pi Pico reports USB vendor 0x2E8A. Bluetooth and other
+      // serial ports open successfully but never send note data, which looks
+      // identical to a working connection that is simply silent.
+      const info = this.port.getInfo();
+
+      if (info.usbVendorId !== 0x2e8a) {
+
+        console.warn(
+          "Selected port is not a Raspberry Pi Pico " +
+          "(expected USB vendor 0x2E8A, got " +
+          (info.usbVendorId
+            ? "0x" + info.usbVendorId.toString(16)
+            : "none — likely a Bluetooth port") +
+          "). Reconnect and choose the Pico."
+        );
+
+      }
+
 
       await this.port.open({
         baudRate: 115200,
@@ -291,6 +361,10 @@ export class PicoSerial {
     if (!this.port) {
       return;
     }
+
+
+    // The port cannot close while a writer holds its lock
+    this.releaseWriter();
 
 
     try {
