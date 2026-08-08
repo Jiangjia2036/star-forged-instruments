@@ -37,15 +37,41 @@ CHUNK_SAMPLES = 250
 # Output Level
 # ------------------------------------------------------------
 
-# Peak of a single oscillator, out of 32767. Three oscillators plus the echo
-# tail can exceed full scale, so the output stage clips rather than wrapping.
-# A single note is the common case, and it should be LOUD.
-AMPLITUDE = 10000
+# Peak of a single oscillator, out of 32767.
+#
+# Voices SUM, so the mix has to leave room for chords. The old pairing of
+# AMPLITUDE 10000 with a 1.5x makeup gain put two notes at 92% of full scale
+# with no margin at all - any attack transient or echo tail crossed the line,
+# and hard clipping squares off the waveform into harsh intermodulation.
+# That is what made two notes sound rough.
+AMPLITUDE = 11000
 
 # Makeup gain applied after the volume pot, 8.8 fixed point.
-# 256 = 1.0x, 384 = 1.5x, 512 = 2.0x.
-# Lower this first if chords sound gritty.
-OUTPUT_GAIN = 384
+# 256 = 1.0x, 288 = 1.125x, 384 = 1.5x.
+OUTPUT_GAIN = 288
+
+
+# ------------------------------------------------------------
+# Soft Limiter
+# ------------------------------------------------------------
+
+# Below the knee the signal is untouched, so single notes are completely
+# clean. Above it, peaks are compressed toward full scale instead of being
+# chopped flat. A chord gets quietly squeezed rather than distorted, which
+# is how a real mixer behaves and the reason multiple notes stay smooth.
+#
+# This is what makes scaling to 16 buttons practical: 16 voices at full
+# amplitude would be 6x over full scale, and no amount of gain trimming
+# fixes that without making one note inaudible. The limiter absorbs it.
+SOFT_KNEE = 20000
+SOFT_SLOPE = 40
+
+# With these numbers one note is untouched, and up to eight sounding together
+# still land inside full scale. Beyond that the limiter runs out and clips,
+# so if you routinely hold more than eight keys, drop AMPLITUDE rather than
+# lowering SOFT_SLOPE - a shallower slope makes a chord barely louder than a
+# single note, which sounds lifeless.
+MAX_CLEAN_VOICES = 8
 
 # Floor for the volume pot so an unwired or dirty pot still makes sound.
 # Set to 0 if you want the pot to be able to silence the instrument.
@@ -83,6 +109,15 @@ TRACK_DIR = "/audio"
 # 22 chunks is roughly 250 ms.
 POS_REPORT_CHUNKS = 22
 
+# The potentiometer is the only thing that sets volume. The website just
+# displays where it is, so the level always matches the physical knob.
+#
+# ADC readings jitter by a few counts even when nothing moves, so a change
+# is only reported once it exceeds the deadband, and never more often than
+# the interval. Without both, the knob would flood the serial link.
+VOL_REPORT_CHUNKS = 8
+VOL_DEADBAND = 2
+
 
 # ------------------------------------------------------------
 # Envelope (ADSR)
@@ -103,6 +138,11 @@ ENV_DECAY_MS = 140
 ENV_SUSTAIN = 0.78
 ENV_RELEASE_MS = 110
 
+# With the sustain pedal down, a released key rings out instead of stopping,
+# the way a piano behaves when the dampers are lifted. Long enough to let
+# notes overlap into a chord, short enough that the instrument still breathes.
+ENV_PEDAL_RELEASE_MS = 2600
+
 # Milliseconds of audio produced per loop iteration
 CHUNK_MS = CHUNK_SAMPLES * 1000.0 / SAMPLE_RATE
 
@@ -111,10 +151,15 @@ ENV_SUSTAIN_LEVEL = int(ENV_MAX * ENV_SUSTAIN)
 ENV_ATTACK_STEP = int(ENV_MAX * CHUNK_MS / ENV_ATTACK_MS)
 ENV_DECAY_STEP = int((ENV_MAX - ENV_SUSTAIN_LEVEL) * CHUNK_MS / ENV_DECAY_MS)
 ENV_RELEASE_STEP = int(ENV_MAX * CHUNK_MS / ENV_RELEASE_MS)
+ENV_PEDAL_STEP = int(ENV_MAX * CHUNK_MS / ENV_PEDAL_RELEASE_MS)
 
 
-def env_advance(level, gate):
-    """One chunk of ADSR movement for a single voice."""
+def env_advance(level, gate, pedal):
+    """One chunk of ADSR movement for a single voice.
+
+    `pedal` is the sustain switch. Holding it swaps the fast release for a
+    long decay, so lifting a key leaves the note ringing.
+    """
 
     if gate:
 
@@ -131,7 +176,7 @@ def env_advance(level, gate):
     else:
 
         if level > 0:
-            level -= ENV_RELEASE_STEP
+            level -= ENV_PEDAL_STEP if pedal else ENV_RELEASE_STEP
             if level < 0:
                 level = 0
 
@@ -177,9 +222,9 @@ PHASE_MASK = (TABLE_LEN << 16) - 1
 # Serial Protocol
 # ============================================================
 
-# Note names sent to the website for btn_1, btn_2, btn_3. Rewritten by the
+# Note names sent to the website for btn_1, btn_2 and btn_3. Rewritten by the
 # TUNE command so NOTE_* messages always match what the buttons actually play.
-NOTES = ["C4", "D4", "E4"]
+NOTES = ["C4", "E4", "G4"]
 
 SEMITONES = {
     "C": 0,
@@ -274,13 +319,20 @@ bclk = Pin(14)
 lrc = Pin(15)
 din = Pin(13)
 
-# Buttons
+# Note buttons. GP16 and GP17 are the two currently wired to the board and
+# play C and E. GP18 is the third voice, ready for when that key is soldered.
 btn_1 = Pin(16, Pin.IN, Pin.PULL_UP)
 btn_2 = Pin(17, Pin.IN, Pin.PULL_UP)
 btn_3 = Pin(18, Pin.IN, Pin.PULL_UP)
 
 # Echo switch
 echo_switch = Pin(19, Pin.IN, Pin.PULL_UP)
+
+# Sustain pedal / damper switch.
+# Wire exactly like the note buttons: one leg to GP20, the other to any GND.
+# The internal pull-up means no resistor is needed - the pin reads 1 when
+# open and 0 when the switch is closed.
+sustain_switch = Pin(20, Pin.IN, Pin.PULL_UP)
 
 # Flex sensor
 flex_sensor = ADC(26)
@@ -405,6 +457,8 @@ def render_chunk(
     pmask = PHASE_MASK
     gain = OUTPUT_GAIN
     tgain = TRACK_GAIN
+    knee = SOFT_KNEE
+    slope = SOFT_SLOPE
 
     for i in range(CHUNK_SAMPLES):
 
@@ -502,14 +556,20 @@ def render_chunk(
 
         final_out = (final_out * gain) >> 8
 
-        # Final safety clip. The echo branch clipped its own feedback, but
-        # nothing clipped the dry path, so a loud chord could wrap around
-        # into harsh distortion or overflow the int16 pack below.
-        if final_out > 32767:
-            final_out = 32767
+        # Soft knee limiter. Chopping peaks flat turns a chord into a square
+        # wave full of intermodulation; compressing them keeps it musical.
+        # One note never reaches the knee, so it stays untouched.
+        if final_out > knee:
+            final_out = knee + (((final_out - knee) * slope) >> 8)
 
-        elif final_out < -32768:
-            final_out = -32768
+            if final_out > 32767:
+                final_out = 32767
+
+        elif final_out < -knee:
+            final_out = -knee - (((-final_out - knee) * slope) >> 8)
+
+            if final_out < -32768:
+                final_out = -32768
 
         struct.pack_into('<h', buf, i * 2, final_out)
 
@@ -572,6 +632,9 @@ def run_dsp_engine():
     vib_tick = 0
 
     web_echo = False
+    web_sustain = False
+
+    prev_sustain = False
 
     # Tremolo is computed once per chunk rather than per sample. At 88 chunks
     # a second that is far above the few Hz an LFO needs, and it costs the
@@ -580,9 +643,9 @@ def run_dsp_engine():
     trem_rate = 5.0
     trem_tick = 0
 
-    # Digital volume from the website, 0-256. Multiplied with the pot so both
-    # the physical knob and the site have control.
-    web_volume = 256
+    # Last volume percentage reported to the website
+    vol_reported = -1
+    vol_counter = 0
 
     # Backing track streaming state
     track_file = None
@@ -653,6 +716,14 @@ def run_dsp_engine():
                     web_echo = rx[8:] == "ON"
                     print("FX_ECHO_%s_OK" % ("ON" if web_echo else "OFF"))
 
+                elif rx.startswith("FX_SUSTAIN_"):
+
+                    web_sustain = rx[11:] == "ON"
+                    print(
+                        "FX_SUSTAIN_%s_OK"
+                        % ("ON" if web_sustain else "OFF")
+                    )
+
                 elif rx.startswith("FX_TREM_"):
 
                     try:
@@ -663,17 +734,6 @@ def run_dsp_engine():
                     if 0 <= depth <= 100:
                         trem_depth = depth
                         print("FX_TREM_%d_OK" % depth)
-
-                elif rx.startswith("VOL_"):
-
-                    try:
-                        level = int(rx[4:])
-                    except ValueError:
-                        level = -1
-
-                    if 0 <= level <= 100:
-                        web_volume = (level * 256) // 100
-                        print("VOL_%d_OK" % level)
 
                 elif rx == "TRACK_LIST":
                     print("TRACKS_" + "|".join(list_tracks()))
@@ -777,13 +837,29 @@ def run_dsp_engine():
         # Physical switch or the website can each turn the echo on
         echo_active = (not echo_switch.value()) or web_echo
 
+        # Damper pedal: physical switch or the website
+        sustain_held = (not sustain_switch.value()) or web_sustain
+
         vol_multiplier = volume_pot.read_u16()
 
         if vol_multiplier < VOL_MIN:
             vol_multiplier = VOL_MIN
 
-        # Website volume rides on top of the physical knob
-        vol_multiplier = (vol_multiplier * web_volume) >> 8
+        # Tell the website where the knob is sitting. One way only - the
+        # site never sets the level, it just shows it.
+        vol_counter += 1
+
+        if vol_counter >= VOL_REPORT_CHUNKS:
+            vol_counter = 0
+
+            vol_percent = (vol_multiplier * 100) >> 16
+
+            if vol_percent > 100:
+                vol_percent = 100
+
+            if abs(vol_percent - vol_reported) >= VOL_DEADBAND:
+                vol_reported = vol_percent
+                print("VOL_%d" % vol_percent)
 
         # Tremolo: one LFO value per chunk, folded into the volume so the
         # render loop stays untouched.
@@ -824,6 +900,10 @@ def run_dsp_engine():
         if echo_active != prev_echo:
             prev_echo = echo_active
             print("EFFECT_ECHO_%s" % ("ON" if echo_active else "OFF"))
+
+        if sustain_held != prev_sustain:
+            prev_sustain = sustain_held
+            print("SUSTAIN_%s" % ("ON" if sustain_held else "OFF"))
 
 
         # ====================================================
@@ -888,15 +968,17 @@ def run_dsp_engine():
         # ====================================================
 
         # Where each voice's amplitude should land by the end of this chunk
-        next_1 = env_advance(amp_1, play_1)
-        next_2 = env_advance(amp_2, play_2)
-        next_3 = env_advance(amp_3, play_3)
+        next_1 = env_advance(amp_1, play_1, sustain_held)
+        next_2 = env_advance(amp_2, play_2, sustain_held)
+        next_3 = env_advance(amp_3, play_3, sustain_held)
+
 
         # The renderer walks from the current level to that target one
         # sample at a time, so there is no step at the chunk boundary
         step_1 = (next_1 - amp_1) // CHUNK_SAMPLES
         step_2 = (next_2 - amp_2) // CHUNK_SAMPLES
         step_3 = (next_3 - amp_3) // CHUNK_SAMPLES
+
 
         if vib_depth:
 
@@ -912,6 +994,7 @@ def run_dsp_engine():
             use_1 = int(inc_1 * bend)
             use_2 = int(inc_2 * bend)
             use_3 = int(inc_3 * bend)
+
 
         else:
             use_1 = inc_1

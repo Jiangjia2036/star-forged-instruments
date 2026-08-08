@@ -8,6 +8,8 @@ function Portrait({ src, alt, fallback, className }) {
   const [failed, setFailed] = useState(false);
 
   if (!src || failed) {
+    if (!fallback) return null;
+
     return (
       <div className={className + " portrait-empty"}>
         <span>{fallback}</span>
@@ -45,7 +47,7 @@ function BandPage() {
       </div>
 
       <div className="panel">
-        <h3 className="panel-title">The band</h3>
+        <h3 className="panel-title band-members-title">The band</h3>
 
         <div className="member-grid">
           {MEMBERS.map((member) => (
@@ -53,7 +55,7 @@ function BandPage() {
               <Portrait
                 src={member.photo}
                 alt={member.name}
-                fallback={member.name.charAt(0)}
+                fallback=""
                 className="member-photo"
               />
 

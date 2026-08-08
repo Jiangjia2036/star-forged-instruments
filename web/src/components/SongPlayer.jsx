@@ -2,6 +2,13 @@ import { useState, useRef, useEffect } from "react";
 
 import { SONGS } from "../songs";
 import { buttonFor } from "../scales";
+import {
+  detectNote,
+  accumulateChroma,
+  estimateKey,
+  makeChroma,
+  decayChroma,
+} from "../pitch";
 
 // Plays a track and shows the performer what to press.
 //
@@ -29,8 +36,18 @@ function SongPlayer({
   picoTrackPlaying = null,
   onPlayPicoTrack,
   onStopPicoTrack,
+  onDetectedKey,
 }) {
-  const [imported, setImported] = useState(null);
+  // What the site hears in the backing track right now
+  const [heard, setHeard] = useState(null);
+  const [heardKey, setHeardKey] = useState(null);
+
+  const audioCtxRef = useRef(null);
+  const analyserRef = useRef(null);
+  const specRef = useRef(null);
+  const chromaRef = useRef(makeChroma());
+  const sourceRef = useRef(null);
+  const keyHoldRef = useRef({ name: null, frames: 0 });
   const [trackIndex, setTrackIndex] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [elapsed, setElapsed] = useState(0);
@@ -38,7 +55,7 @@ function SongPlayer({
   // "along" - you press the buttons. "auto" - the site drives the Pico.
   const [mode, setMode] = useState("along");
 
-  const tracks = imported ? [...SONGS, imported] : SONGS;
+  const tracks = SONGS;
   const track = tracks[Math.min(trackIndex, tracks.length - 1)];
 
   const notes = track.notes ?? [];
@@ -47,7 +64,6 @@ function SongPlayer({
   const frameRef = useRef(null);
   const startedAtRef = useRef(0);
   const audioRef = useRef(null);
-  const fileRef = useRef(null);
   const statesRef = useRef([]);
 
   const cbRef = useRef({});
@@ -57,6 +73,7 @@ function SongPlayer({
     onAllNotesOff,
     onTargetsChange,
     onProgress,
+    onDetectedKey,
     mode,
   };
 
@@ -88,6 +105,21 @@ function SongPlayer({
       audioRef.current = null;
     }
 
+    // A MediaElementSource is bound to its element for life, so drop the
+    // graph when playback stops rather than trying to reuse it
+    if (sourceRef.current) {
+      try {
+        sourceRef.current.disconnect();
+      } catch {
+        // already torn down
+      }
+      sourceRef.current = null;
+    }
+
+    analyserRef.current = null;
+    setHeard(null);
+    setHeardKey(null);
+
     silenceAll();
     cbRef.current.onAllNotesOff?.();
     setElapsed(0);
@@ -116,7 +148,39 @@ function SongPlayer({
 
     if (track.audioUrl) {
       audio = new Audio(track.audioUrl);
+      audio.crossOrigin = "anonymous";
       audioRef.current = audio;
+
+      // Route the track through an analyser so the site can hear what is
+      // playing. It still reaches the speakers - the analyser passes audio
+      // through to the destination.
+      try {
+        if (!audioCtxRef.current) {
+          audioCtxRef.current = new (window.AudioContext ||
+            window.webkitAudioContext)();
+        }
+
+        const ctx = audioCtxRef.current;
+        await ctx.resume();
+
+        const analyser = ctx.createAnalyser();
+        analyser.fftSize = 8192;
+        analyser.smoothingTimeConstant = 0.55;
+
+        const source = ctx.createMediaElementSource(audio);
+        source.connect(analyser);
+        analyser.connect(ctx.destination);
+
+        analyserRef.current = analyser;
+        sourceRef.current = source;
+        specRef.current = new Float32Array(analyser.frequencyBinCount);
+
+        chromaRef.current = makeChroma();
+        keyHoldRef.current = { name: null, frames: 0 };
+      } catch (err) {
+        console.log("Pitch analysis unavailable:", err.message);
+        analyserRef.current = null;
+      }
 
       try {
         await audio.play();
@@ -146,6 +210,55 @@ function SongPlayer({
       cbRef.current.onProgress(
         total ? Math.min(100, (now / total) * 100) : 0
       );
+
+      // ---- listen to the backing track ----
+      const analyser = analyserRef.current;
+
+      if (analyser && specRef.current) {
+        analyser.getFloatFrequencyData(specRef.current);
+
+        const ctx = audioCtxRef.current;
+
+        const note = detectNote(
+          specRef.current,
+          ctx.sampleRate,
+          analyser.fftSize
+        );
+
+        setHeard(note);
+
+        // Chroma decays so the key estimate follows the music rather than
+        // averaging the whole song into mush
+        decayChroma(chromaRef.current, 0.985);
+        accumulateChroma(
+          specRef.current,
+          ctx.sampleRate,
+          analyser.fftSize,
+          chromaRef.current
+        );
+
+        const key = estimateKey(chromaRef.current);
+
+        if (key) {
+          setHeardKey(key);
+
+          // Only follow a key once it has held steady, and only when it is
+          // clearly ahead of the runner up. Retuning the instrument on a
+          // passing chord would be unplayable.
+          const hold = keyHoldRef.current;
+
+          if (key.name === hold.name) {
+            hold.frames += 1;
+          } else {
+            hold.name = key.name;
+            hold.frames = 1;
+          }
+
+          if (hold.frames === 90 && key.margin > 0.06) {
+            cbRef.current.onDetectedKey?.(key.name);
+          }
+        }
+      }
 
       const states = statesRef.current;
       const targets = [];
@@ -180,41 +293,6 @@ function SongPlayer({
     };
 
     frameRef.current = requestAnimationFrame(tick);
-  };
-
-  const loadFile = (event) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    if (playing) stop();
-
-    // Release the previous object URL so it is not leaked
-    if (imported?.audioUrl) {
-      URL.revokeObjectURL(imported.audioUrl);
-    }
-
-    const url = URL.createObjectURL(file);
-    const probe = new Audio(url);
-
-    probe.addEventListener("loadedmetadata", () => {
-      const entry = {
-        id: "imported",
-        title: file.name.replace(/\.[^.]+$/, ""),
-        audioUrl: url,
-        notes: [],
-        duration: isFinite(probe.duration) ? probe.duration : 0,
-      };
-
-      setImported(entry);
-      setTrackIndex(SONGS.length);
-    });
-
-    probe.addEventListener("error", () => {
-      console.log("Could not read that file as audio:", file.name);
-    });
-
-    // allow re-picking the same file later
-    event.target.value = "";
   };
 
   const currentNote = playing
@@ -288,13 +366,41 @@ function SongPlayer({
       </div>
 
       {freePlay ? (
-        <div className="cue idle">
-          <div className="label">Free play</div>
+        // No chart, so the site listens to the track instead and reports
+        // what it hears
+        <div className={heard ? "cue" : "cue idle"}>
+          <div className="label">
+            {playing ? "Heard in the track" : "Free play"}
+          </div>
+
           <div className="cue-note">
             <span className="cue-name">
-              {playing ? "beep along" : "--"}
+              {playing ? (heard ? heard.name : "...") : "--"}
             </span>
+
+            {heard && (
+              <span
+                className={
+                  buttonFor(heard.name, buttonNotes)
+                    ? "cue-badge"
+                    : "cue-badge cue-badge-off"
+                }
+              >
+                {buttonFor(heard.name, buttonNotes)
+                  ? "Button " + buttonFor(heard.name, buttonNotes)
+                  : "not on a button"}
+              </span>
+            )}
           </div>
+
+          {playing && heardKey && (
+            <div className="key-readout">
+              Key: <b>{heardKey.name} {heardKey.mode}</b>
+              <span className="key-conf">
+                {heardKey.margin > 0.06 ? "locked" : "listening"}
+              </span>
+            </div>
+          )}
         </div>
       ) : (
         <>
@@ -352,27 +458,6 @@ function SongPlayer({
         </div>
       )}
 
-      <div className="track-load">
-        <input
-          ref={fileRef}
-          type="file"
-          accept="audio/*,video/mp4"
-          onChange={loadFile}
-          hidden
-        />
-
-        <button
-          className="load-btn"
-          onClick={() => fileRef.current?.click()}
-        >
-          Load track
-        </button>
-
-        <span className="load-hint">
-          Plays in the browser. For speaker playback put a 22 kHz mono WAV in
-          the Pico's /audio folder — see PicoCode/AUDIO.md
-        </span>
-      </div>
     </section>
   );
 }

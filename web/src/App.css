@@ -202,6 +202,24 @@ body {
   gap: 12px;
 }
 
+.api-status {
+  padding: 4px 8px;
+
+  color: var(--faint);
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid var(--panel-line);
+  border-radius: 999px;
+
+  font-size: 10px;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+}
+
+.api-status.on {
+  color: rgba(151, 220, 255, 0.9);
+  border-color: rgba(91, 168, 255, 0.32);
+}
+
 .pico-status {
   display: inline-flex;
   align-items: center;
@@ -407,30 +425,6 @@ button:hover {
   color: #fff;
 
   box-shadow: 0 0 16px rgba(77, 255, 150, 0.45);
-}
-
-.track-load {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-wrap: wrap;
-
-  gap: 10px;
-
-  margin-top: 18px;
-  padding-top: 16px;
-
-  border-top: 1px solid var(--panel-line);
-}
-
-.load-btn {
-  padding: 6px 14px;
-  font-size: 12px;
-}
-
-.load-hint {
-  font-size: 11px;
-  color: var(--faint);
 }
 
 .progress-track {
@@ -686,13 +680,19 @@ button:hover {
 
 .band-photo {
   width: 100%;
-  height: 260px;
+  height: auto;
 
-  object-fit: cover;
+  object-fit: contain;
 
   border-radius: 12px;
 
   display: block;
+
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.band-photo.portrait-empty {
+  min-height: 260px;
 }
 
 .portrait-empty {
@@ -725,6 +725,10 @@ button:hover {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
   gap: 14px;
+}
+
+.band-members-title {
+  text-align: center;
 }
 
 .member {
@@ -1017,6 +1021,16 @@ a.linkedin-link:hover {
   color: var(--muted);
 }
 
+/* Damper pedal. Warm amber so it reads as a sustained state rather than
+   another effect selection. */
+.sustain-btn.on {
+  background: rgba(255, 186, 90, 0.2);
+  border-color: rgba(255, 186, 90, 0.6);
+  color: #ffe3bd;
+
+  box-shadow: 0 0 16px rgba(255, 176, 60, 0.4);
+}
+
 .fx-btn.active {
   background: rgba(160, 107, 255, 0.18);
   border-color: rgba(160, 107, 255, 0.5);
@@ -1037,6 +1051,67 @@ a.linkedin-link:hover {
 
 .slider .label {
   margin: 0;
+}
+
+/* Volume is a read-only meter fed by the potentiometer */
+.vol-meter {
+  width: 108px;
+  height: 5px;
+
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 99px;
+
+  overflow: hidden;
+}
+
+.vol-meter-fill {
+  height: 100%;
+
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  box-shadow: 0 0 10px rgba(91, 140, 255, 0.7);
+
+  transition: width 0.12s linear;
+}
+
+.vol-readout {
+  min-width: 34px;
+
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+
+  color: var(--muted);
+}
+
+/* What the site hears in a backing track */
+.cue-badge-off {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: var(--panel-line);
+  color: var(--faint);
+}
+
+.key-readout {
+  margin-top: 12px;
+
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.key-readout b {
+  color: var(--text);
+}
+
+.key-conf {
+  margin-left: 8px;
+  padding: 2px 7px;
+
+  font-size: 10px;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 999px;
+
+  color: var(--faint);
 }
 
 .slider input {
@@ -1107,8 +1182,8 @@ a.linkedin-link:hover {
     font-size: 1.5rem;
   }
 
-  .band-photo {
-    height: 180px;
+  .band-photo.portrait-empty {
+    min-height: 180px;
   }
 
   .brand {
