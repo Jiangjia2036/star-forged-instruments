@@ -1,40 +1,66 @@
 import { useState, useRef, useEffect } from "react";
 
-import { SONGS, NOTE_TO_BUTTON } from "../songs";
+import { SONGS } from "../songs";
+import { buttonFor } from "../scales";
 
-// Plays a song chart. Drives the Pico's speaker over serial, shows a progress
-// bar, and tells the performer which button to press and when.
+// Plays a track and shows the performer what to press.
+//
+// A backing track (mp3/m4a/mp4) plays through the browser, because the Pico
+// can only synthesise its three oscillators - it cannot decode audio. The
+// Pico's speaker provides the beeps you play on top.
+//
+// When a track has an audio file, that file is the clock, so the cues and the
+// progress bar stay locked to the recording.
 
 function formatTime(seconds) {
+  if (!isFinite(seconds)) return "0:00";
   const s = Math.max(0, Math.floor(seconds));
   return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
 }
 
-function SongPlayer({ onNoteOn, onNoteOff, onTargetsChange }) {
-  const [songIndex, setSongIndex] = useState(0);
+function SongPlayer({
+  onNoteOn,
+  onNoteOff,
+  onTargetsChange,
+  onProgress,
+  buttonNotes = [],
+  picoTracks = [],
+  picoTrackPlaying = null,
+  onPlayPicoTrack,
+  onStopPicoTrack,
+}) {
+  const [imported, setImported] = useState(null);
+  const [trackIndex, setTrackIndex] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [elapsed, setElapsed] = useState(0);
 
-  const song = SONGS[songIndex];
+  // "along" - you press the buttons. "auto" - the site drives the Pico.
+  const [mode, setMode] = useState("along");
+
+  const tracks = imported ? [...SONGS, imported] : SONGS;
+  const track = tracks[Math.min(trackIndex, tracks.length - 1)];
+
+  const notes = track.notes ?? [];
+  const duration = track.duration || 0;
 
   const frameRef = useRef(null);
   const startedAtRef = useRef(0);
   const audioRef = useRef(null);
-
-  // Per-note playback status for the current run
+  const fileRef = useRef(null);
   const statesRef = useRef([]);
 
-  // Latest callbacks, so the animation loop never uses stale closures
-  const cbRef = useRef({ onNoteOn, onNoteOff, onTargetsChange });
-  cbRef.current = { onNoteOn, onNoteOff, onTargetsChange };
+  const cbRef = useRef({});
+  cbRef.current = { onNoteOn, onNoteOff, onTargetsChange, onProgress, mode };
 
-  const stopAllSounding = () => {
+  const silenceAll = () => {
     const states = statesRef.current;
 
-    song.notes.forEach((n, i) => {
+    notes.forEach((n, i) => {
       if (states[i] === "on") {
-        cbRef.current.onNoteOff(n.note);
         states[i] = "done";
+        if (cbRef.current.mode === "auto") {
+          cbRef.current.onNoteOff(n.note);
+        }
       }
     });
 
@@ -51,20 +77,17 @@ function SongPlayer({ onNoteOn, onNoteOff, onTargetsChange }) {
 
     if (audioRef.current) {
       audioRef.current.pause();
-      audioRef.current.currentTime = 0;
       audioRef.current = null;
     }
 
-    stopAllSounding();
+    silenceAll();
     setElapsed(0);
+    cbRef.current.onProgress(0);
   };
 
-  // Stop cleanly if the song is switched or the component goes away
   useEffect(() => {
     return () => {
-      if (frameRef.current) {
-        cancelAnimationFrame(frameRef.current);
-      }
+      if (frameRef.current) cancelAnimationFrame(frameRef.current);
     };
   }, []);
 
@@ -74,19 +97,20 @@ function SongPlayer({ onNoteOn, onNoteOff, onTargetsChange }) {
       return;
     }
 
-    statesRef.current = song.notes.map(() => "pending");
+    statesRef.current = notes.map(() => "pending");
 
-    // An optional real audio file is the authoritative clock when present,
-    // so the chart stays locked to the recording.
-    if (song.audioUrl) {
-      const el = new Audio(song.audioUrl);
-      audioRef.current = el;
+    let audio = null;
+
+    if (track.audioUrl) {
+      audio = new Audio(track.audioUrl);
+      audioRef.current = audio;
 
       try {
-        await el.play();
+        await audio.play();
       } catch (err) {
-        console.log("Audio file failed to play:", err.message);
+        console.log("Backing track failed to play:", err.message);
         audioRef.current = null;
+        audio = null;
       }
     }
 
@@ -94,38 +118,47 @@ function SongPlayer({ onNoteOn, onNoteOff, onTargetsChange }) {
     setPlaying(true);
 
     const tick = () => {
-      const audio = audioRef.current;
+      const a = audioRef.current;
 
-      const now = audio
-        ? audio.currentTime
+      const now = a
+        ? a.currentTime
         : (performance.now() - startedAtRef.current) / 1000;
 
+      // A loaded file knows its own length; a chart uses its computed length
+      const total = a && isFinite(a.duration) && a.duration
+        ? a.duration
+        : duration;
+
       setElapsed(now);
+      cbRef.current.onProgress(
+        total ? Math.min(100, (now / total) * 100) : 0
+      );
 
       const states = statesRef.current;
       const targets = [];
+      const auto = cbRef.current.mode === "auto";
 
-      song.notes.forEach((n, i) => {
-        const noteEnd = n.time + n.duration;
+      notes.forEach((n, i) => {
+        const end = n.time + n.duration;
 
         if (states[i] === "pending" && now >= n.time) {
           states[i] = "on";
-          cbRef.current.onNoteOn(n.note);
+          if (auto) cbRef.current.onNoteOn(n.note);
         }
 
-        if (states[i] === "on" && now >= noteEnd) {
+        if (states[i] === "on" && now >= end) {
           states[i] = "done";
-          cbRef.current.onNoteOff(n.note);
+          if (auto) cbRef.current.onNoteOff(n.note);
         }
 
-        if (states[i] === "on") {
-          targets.push(n.note);
-        }
+        if (states[i] === "on") targets.push(n.note);
       });
 
       cbRef.current.onTargetsChange(targets);
 
-      if (now >= song.duration) {
+      const finished = a ? a.ended : now >= total;
+
+      if (finished) {
         stop();
         return;
       }
@@ -136,45 +169,98 @@ function SongPlayer({ onNoteOn, onNoteOff, onTargetsChange }) {
     frameRef.current = requestAnimationFrame(tick);
   };
 
-  // What to show the performer
-  const currentNote = song.notes.find(
-    (n) => elapsed >= n.time && elapsed < n.time + n.duration
-  );
+  const loadFile = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
 
-  const upcoming = song.notes
-    .filter((n) => n.time > elapsed)
-    .slice(0, 4);
+    if (playing) stop();
 
-  const progress = song.duration
-    ? Math.min(100, (elapsed / song.duration) * 100)
+    // Release the previous object URL so it is not leaked
+    if (imported?.audioUrl) {
+      URL.revokeObjectURL(imported.audioUrl);
+    }
+
+    const url = URL.createObjectURL(file);
+    const probe = new Audio(url);
+
+    probe.addEventListener("loadedmetadata", () => {
+      const entry = {
+        id: "imported",
+        title: file.name.replace(/\.[^.]+$/, ""),
+        audioUrl: url,
+        notes: [],
+        duration: isFinite(probe.duration) ? probe.duration : 0,
+      };
+
+      setImported(entry);
+      setTrackIndex(SONGS.length);
+    });
+
+    probe.addEventListener("error", () => {
+      console.log("Could not read that file as audio:", file.name);
+    });
+
+    // allow re-picking the same file later
+    event.target.value = "";
+  };
+
+  const currentNote = playing
+    ? notes.find((n) => elapsed >= n.time && elapsed < n.time + n.duration)
+    : null;
+
+  const upcoming = notes.filter((n) => n.time > elapsed).slice(0, 4);
+
+  const shownTotal =
+    audioRef.current && isFinite(audioRef.current.duration)
+      ? audioRef.current.duration
+      : duration;
+
+  const progress = shownTotal
+    ? Math.min(100, (elapsed / shownTotal) * 100)
     : 0;
 
-  return (
-    <section className="song-section">
-      <h2>Setlist</h2>
+  const freePlay = notes.length === 0;
 
-      <div className="song-picker">
-        {SONGS.map((s, i) => (
+  return (
+    <section className="stage">
+      <div className="song-tabs">
+        {tracks.map((t, i) => (
           <button
-            key={s.id}
-            className={i === songIndex ? "song-btn active" : "song-btn"}
+            key={t.id}
+            className={i === trackIndex ? "song-tab active" : "song-tab"}
             onClick={() => {
               if (playing) stop();
-              setSongIndex(i);
+              setTrackIndex(i);
             }}
           >
-            {s.title}
+            {t.title}
           </button>
         ))}
       </div>
 
-      <div className="song-transport">
+      <div className="transport">
         <button className="play-btn" onClick={play}>
           {playing ? "Stop" : "Play"}
         </button>
 
-        <span className="song-time">
-          {formatTime(elapsed)} / {formatTime(song.duration)}
+        <div className="mode-toggle">
+          <button
+            className={mode === "along" ? "mode-btn active" : "mode-btn"}
+            onClick={() => setMode("along")}
+          >
+            You play
+          </button>
+
+          <button
+            className={mode === "auto" ? "mode-btn active" : "mode-btn"}
+            onClick={() => setMode("auto")}
+          >
+            Pico plays
+          </button>
+        </div>
+
+        <span className="time">
+          {formatTime(elapsed)} / {formatTime(shownTotal)}
         </span>
       </div>
 
@@ -185,41 +271,91 @@ function SongPlayer({ onNoteOn, onNoteOff, onTargetsChange }) {
         />
       </div>
 
-      <div className="now-playing">
-        <div className="now-label">Press now</div>
-
-        {currentNote ? (
-          <div className="now-note">
-            <span className="now-button">
-              Button {NOTE_TO_BUTTON[currentNote.note] ?? "-"}
+      {freePlay ? (
+        <div className="cue idle">
+          <div className="label">Free play</div>
+          <div className="cue-note">
+            <span className="cue-name">
+              {playing ? "beep along" : "--"}
             </span>
-            <span className="now-name">{currentNote.note}</span>
           </div>
-        ) : (
-          <div className="now-note idle">
-            <span className="now-name">{playing ? "rest" : "-"}</span>
-          </div>
-        )}
-      </div>
-
-      <div className="upcoming">
-        <div className="now-label">Next</div>
-
-        <div className="upcoming-list">
-          {upcoming.length === 0 && (
-            <span className="upcoming-empty">-</span>
-          )}
-
-          {upcoming.map((n, i) => (
-            <span key={n.note + n.time + i} className="upcoming-chip">
-              <strong>{n.note}</strong>
-              <em>btn {NOTE_TO_BUTTON[n.note] ?? "-"}</em>
-              <span className="upcoming-in">
-                in {Math.max(0, n.time - elapsed).toFixed(1)}s
-              </span>
-            </span>
-          ))}
         </div>
+      ) : (
+        <>
+          <div className={currentNote ? "cue" : "cue idle"}>
+            <div className="label">Press now</div>
+
+            {currentNote ? (
+              <div className="cue-note">
+                <span className="cue-name">{currentNote.note}</span>
+                <span className="cue-badge">
+                  Button {buttonFor(currentNote.note, buttonNotes) ?? "-"}
+                </span>
+              </div>
+            ) : (
+              <div className="cue-note">
+                <span className="cue-name">{playing ? "rest" : "--"}</span>
+              </div>
+            )}
+          </div>
+
+          <div className="next-row">
+            {upcoming.map((n, i) => (
+              <span key={n.note + n.time + i} className="next-chip">
+                <b>{n.note}</b>
+                btn {buttonFor(n.note, buttonNotes) ?? "-"}
+              </span>
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* WAV files stored on the Pico. These come out of the instrument's
+          own speaker, mixed with your beeps, so you can play along. */}
+      {picoTracks.length > 0 && (
+        <div className="pico-tracks">
+          <div className="label">On the instrument</div>
+
+          <div className="pico-track-list">
+            {picoTracks.map((name) => {
+              const active = picoTrackPlaying === name;
+
+              return (
+                <button
+                  key={name}
+                  className={active ? "pico-track active" : "pico-track"}
+                  onClick={() =>
+                    active ? onStopPicoTrack?.() : onPlayPicoTrack?.(name)
+                  }
+                >
+                  {active ? "■" : "▶"} {name.replace(/\.wav$/i, "")}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      <div className="track-load">
+        <input
+          ref={fileRef}
+          type="file"
+          accept="audio/*,video/mp4"
+          onChange={loadFile}
+          hidden
+        />
+
+        <button
+          className="load-btn"
+          onClick={() => fileRef.current?.click()}
+        >
+          Load track
+        </button>
+
+        <span className="load-hint">
+          Plays in the browser. For speaker playback put a 22 kHz mono WAV in
+          the Pico's /audio folder — see PicoCode/AUDIO.md
+        </span>
       </div>
     </section>
   );
