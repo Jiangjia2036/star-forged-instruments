@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-function Keyboard({ synth, activeNotes }) {
+function Keyboard({ synth, activeNotes, targetNotes = [] }) {
   const scales = {
     C: ["C4", "D4", "E4", "F4", "G4", "A4", "B4", "C5"],
     D: ["D4", "E4", "F#4", "G4", "A4", "B4", "C#5", "D5"],
@@ -85,9 +85,13 @@ function Keyboard({ synth, activeNotes }) {
               key={note}
               style={{ "--glow-hue": hueFor(note) }}
               className={
-                activeNotes.includes(note)
-                  ? "key pico-active"
-                  : "key"
+                [
+                  "key",
+                  activeNotes.includes(note) ? "pico-active" : "",
+                  targetNotes.includes(note) ? "key-target" : "",
+                ]
+                  .filter(Boolean)
+                  .join(" ")
               }
               onMouseDown={() => startNote(note)}
               onMouseUp={stopNote}
