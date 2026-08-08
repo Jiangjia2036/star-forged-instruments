@@ -5,6 +5,7 @@ import * as Tone from "tone";
 import Keyboard from "./components/Keyboard";
 import Controls from "./components/Controls";
 import Visualizer from "./components/Visualizer";
+import SongPlayer from "./components/SongPlayer";
 import { PicoSerial, isSerialSupported } from "./pico-serial";
 
 function App() {
@@ -27,6 +28,9 @@ function App() {
 
   const [picoConnected, setPicoConnected] = useState(false);
   const [activeNotes, setActiveNotes] = useState([]);
+
+  // Notes the current song wants the performer to press right now
+  const [targetNotes, setTargetNotes] = useState([]);
 
   const serialRef = useRef(null);
   // mirror of activeNotes for use inside serial callbacks
@@ -138,6 +142,19 @@ function App() {
     serialRef.current?.disconnect();
   };
 
+
+  // Song playback drives the speaker wired to the Pico, so the instrument
+  // itself produces the sound. The browser only shows what to play.
+
+  const songNoteOn = (note) => {
+    console.log("Song:", note, "ON");
+    serialRef.current?.send("CMD_ON_" + note);
+  };
+
+  const songNoteOff = (note) => {
+    serialRef.current?.send("CMD_OFF_" + note);
+  };
+
   return (
     <div className="app">
       <Visualizer analyzer={analyzer} />
@@ -164,8 +181,18 @@ function App() {
           </span>
         </div>
 
+        <SongPlayer
+          onNoteOn={songNoteOn}
+          onNoteOff={songNoteOff}
+          onTargetsChange={setTargetNotes}
+        />
+
         <div className="bottom-ui">
-          <Keyboard synth={synth} activeNotes={activeNotes} />
+          <Keyboard
+            synth={synth}
+            activeNotes={activeNotes}
+            targetNotes={targetNotes}
+          />
 
           <Controls
             volume={volume}
