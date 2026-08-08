@@ -13,9 +13,12 @@ function Visualizer({ analyzer }) {
     const width = window.innerWidth;
     const height = window.innerHeight;
 
+
     sceneRef.current = new THREE.Scene();
+
     sceneRef.current.background =
       new THREE.Color(0x000000);
+
 
     cameraRef.current =
       new THREE.PerspectiveCamera(
@@ -25,7 +28,12 @@ function Visualizer({ analyzer }) {
         1000
       );
 
-    cameraRef.current.position.set(0, 1, 6);
+    cameraRef.current.position.set(
+      0,
+      1,
+      6
+    );
+
 
     rendererRef.current =
       new THREE.WebGLRenderer({
@@ -46,13 +54,16 @@ function Visualizer({ analyzer }) {
       rendererRef.current.domElement
     );
 
+
     const ambientLight =
       new THREE.AmbientLight(
         0xffffff,
         2
       );
 
-    sceneRef.current.add(ambientLight);
+    sceneRef.current.add(
+      ambientLight
+    );
 
     const directionalLight =
       new THREE.DirectionalLight(
@@ -69,6 +80,7 @@ function Visualizer({ analyzer }) {
     sceneRef.current.add(
       directionalLight
     );
+
 
     const starGeometry =
       new THREE.BufferGeometry();
@@ -126,20 +138,29 @@ function Visualizer({ analyzer }) {
           0
         );
 
-        sceneRef.current.add(ufo);
+        sceneRef.current.add(
+          ufo
+        );
       },
 
       undefined,
 
       (error) => {
-        console.log(error);
+        console.error(
+          "UFO loading error:",
+          error
+        );
       }
     );
 
-    const clock = new THREE.Clock();
+
+    const clock =
+      new THREE.Clock();
 
     function animate() {
-      requestAnimationFrame(animate);
+      requestAnimationFrame(
+        animate
+      );
 
       const t =
         clock.getElapsedTime();
@@ -147,19 +168,31 @@ function Visualizer({ analyzer }) {
       stars.rotation.y += 0.0005;
       stars.rotation.x += 0.0002;
 
-      if (ufo) {
+
+      if (
+        ufo &&
+        analyzer?.current
+      ) {
         const values =
           analyzer.current.getValue();
 
         let sum = 0;
 
-        for (let i = 0; i < values.length; i++) {
-          sum += values[i] * values[i];
+        for (
+          let i = 0;
+          i < values.length;
+          i++
+        ) {
+          sum +=
+            values[i] *
+            values[i];
         }
 
-        const rms = Math.sqrt(
-          sum / values.length
-        );
+        const rms =
+          Math.sqrt(
+            sum / values.length
+          );
+
 
         const audioMovement =
           rms * 4;
@@ -174,6 +207,7 @@ function Visualizer({ analyzer }) {
         ufo.rotation.y += 0.002;
       }
 
+
       rendererRef.current.render(
         sceneRef.current,
         cameraRef.current
@@ -181,6 +215,8 @@ function Visualizer({ analyzer }) {
     }
 
     animate();
+
+
 
     function onWindowResize() {
       const width =
@@ -205,6 +241,7 @@ function Visualizer({ analyzer }) {
       onWindowResize
     );
 
+
     return () => {
       window.removeEventListener(
         "resize",
@@ -218,11 +255,13 @@ function Visualizer({ analyzer }) {
 
       if (
         mountRef.current &&
-        rendererRef.current.domElement
+        rendererRef.current
+          .domElement
           .parentNode
       ) {
         mountRef.current.removeChild(
-          rendererRef.current.domElement
+          rendererRef.current
+            .domElement
         );
       }
     };
@@ -230,9 +269,9 @@ function Visualizer({ analyzer }) {
 
   return (
     <div
-      className="visualizer"
       ref={mountRef}
-    ></div>
+      className="visualizer"
+    />
   );
 }
 
