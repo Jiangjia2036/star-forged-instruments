@@ -1,8 +1,29 @@
+:root {
+  --text: #eef1f8;
+  --muted: rgba(238, 241, 248, 0.5);
+  --faint: rgba(238, 241, 248, 0.28);
+
+  --panel: rgba(12, 14, 24, 0.5);
+  --panel-line: rgba(255, 255, 255, 0.09);
+
+  --accent: #5b8cff;
+  --accent-2: #a06bff;
+
+  --radius: 18px;
+  --gap: 22px;
+}
+
 body {
   margin: 0;
   overflow-x: hidden;
-  font-family: Arial, Helvetica, sans-serif;
-  background: black;
+
+  background: #04040a;
+  color: var(--text);
+
+  font-family: "Inter", system-ui, -apple-system, "Segoe UI",
+    Helvetica, Arial, sans-serif;
+
+  -webkit-font-smoothing: antialiased;
 }
 
 .app {
@@ -11,618 +32,737 @@ body {
   width: 100%;
 }
 
+/* Three.js starfield sits behind everything */
+.visualizer {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+}
+
+/* Keeps the UI legible over a busy starfield without hiding it */
+.app::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+
+  background:
+    radial-gradient(
+      ellipse at 50% 42%,
+      rgba(4, 4, 12, 0.72) 0%,
+      rgba(4, 4, 12, 0.35) 45%,
+      rgba(4, 4, 12, 0.1) 70%
+    );
+}
+
 .ui {
   position: relative;
   z-index: 10;
 
-  width: 100%;
   min-height: 100vh;
 
   display: flex;
   flex-direction: column;
   align-items: center;
 
-  padding: 30px 0 20px;
+  padding: 0 24px 32px;
 
   box-sizing: border-box;
 }
 
-h1 {
-  text-align: center;
-  margin: 0;
+/* Song progress across the very top of the viewport */
+.top-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
 
-  color: white;
+  height: 3px;
 
-  font-size: 3.2rem;
-  font-weight: bold;
+  background: rgba(255, 255, 255, 0.05);
 
-  letter-spacing: 2px;
-
-  text-shadow:
-    0 0 20px rgba(255, 255, 255, 0.25);
+  pointer-events: none;
 }
 
-section {
-  background: rgba(10, 10, 18, 0.18);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+.top-progress-fill {
+  height: 100%;
 
-  border: 1px solid rgba(255, 255, 255, 0.12);
-
-  border-radius: 20px;
-
-  padding: 14px 18px;
-
-  margin-bottom: 16px;
-
-  color: white;
-
-  box-shadow:
-    0 10px 30px rgba(0, 0, 0, 0.35),
-    inset 0 0 20px rgba(255, 255, 255, 0.02);
+  background: linear-gradient(90deg, var(--accent), var(--accent-2), #ff7ad9);
+  box-shadow: 0 0 14px rgba(120, 140, 255, 0.9);
 }
 
-.keyboard-section {
-  flex: 1;
-  margin: 0;
-}
+/* ============================================================
+   Top bar
+   ============================================================ */
 
-.controls-section {
-  width: 320px;
-  margin: 0;
-}
+.topbar {
+  width: 100%;
+  max-width: 1040px;
 
-h2 {
-  text-align: center;
-  margin: 0 0 12px;
-  color: white;
-  font-size: 1.4rem;
-}
-
-.keyboard-wrapper {
   display: flex;
-  justify-content: center;
+  justify-content: space-between;
+  align-items: center;
+
+  padding: 20px 0 28px;
 }
 
-.keyboard {
-  display: flex;
-  justify-content: center;
-  gap: 5px;
+.brand {
+  font-size: 1.15rem;
+  font-weight: 700;
 
-  padding: 8px 10px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
 
-  width: fit-content;
+  margin: 0;
 
-  background: rgba(255, 255, 255, 0.035);
-
-  border-radius: 14px;
-
-  backdrop-filter: blur(8px);
-}
-
-.key {
-  width: 42px;
-  height: 115px;
-
-  border: none;
-
-  border-radius: 7px;
-
-  background: rgba(255, 255, 255, 0.92);
-
-  color: #111;
-
-  font-size: 16px;
-
-  cursor: pointer;
-
-  transition: 0.15s;
-}
-
-.key:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 6px 14px rgba(255, 255, 255, 0.25);
-}
-
-.key:active {
-  transform: translateY(2px);
-  background: #dfe9ff;
-}
-
-.key.pico-active {
-  background: hsl(var(--glow-hue), 90%, 62%);
-
-  color: #0b0b12;
-
-  transform: translateY(2px) scale(1.05);
-
-  box-shadow:
-    0 0 26px 4px hsla(var(--glow-hue), 95%, 60%, 0.9),
-    0 0 60px 10px hsla(var(--glow-hue), 95%, 55%, 0.45);
-
-  /* snap on instantly, ease back out */
-  transition: 0.04s;
+  background: linear-gradient(90deg, #ffffff, #9db6ff);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
 .pico-bar {
-  position: relative;
-  z-index: 10;
-
   display: flex;
-  justify-content: center;
   align-items: center;
-
-  gap: 16px;
-
-  margin-top: 14px;
-}
-
-.connect-btn {
-  padding: 9px 20px;
-
-  font-size: 15px;
-
-  color: white;
-
-  background: rgba(255, 255, 255, 0.07);
-
-  border: 1px solid rgba(255, 255, 255, 0.15);
-
-  border-radius: 9px;
-
-  backdrop-filter: blur(10px);
-
-  cursor: pointer;
-
-  transition: 0.2s;
-}
-
-.connect-btn:hover {
-  transform: translateY(-2px);
-
-  background: rgba(255, 255, 255, 0.15);
+  gap: 12px;
 }
 
 .pico-status {
-  font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
 
-  font-weight: bold;
+  font-size: 12.5px;
+  letter-spacing: 0.3px;
+
+  color: var(--muted);
+}
+
+.pico-status::before {
+  content: "";
+
+  width: 7px;
+  height: 7px;
+
+  border-radius: 50%;
+  background: #ff5c5c;
 }
 
 .pico-status.on {
-  color: #4dff88;
-
-  text-shadow: 0 0 10px rgba(77, 255, 136, 0.6);
+  color: rgba(120, 245, 170, 0.9);
 }
 
-.pico-status.off {
-  color: #ff5c5c;
+.pico-status.on::before {
+  background: #4dff96;
+  box-shadow: 0 0 10px rgba(77, 255, 150, 0.9);
 }
 
-/* Key the song is asking you to press. Deliberately an outline so it reads
-   differently from .pico-active, which means "you actually pressed it". */
-.key.key-target {
-  outline: 3px solid hsl(var(--glow-hue), 95%, 62%);
-  outline-offset: -3px;
+/* ============================================================
+   Shared control styling
+   ============================================================ */
 
-  animation: target-pulse 0.6s ease-in-out infinite;
+button {
+  font-family: inherit;
+  color: var(--text);
+
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--panel-line);
+
+  border-radius: 10px;
+
+  cursor: pointer;
+  transition: background 0.18s, border-color 0.18s, transform 0.18s;
 }
 
-@keyframes target-pulse {
-  0%, 100% {
-    box-shadow: 0 0 10px 1px hsla(var(--glow-hue), 95%, 60%, 0.55);
-  }
-  50% {
-    box-shadow: 0 0 22px 5px hsla(var(--glow-hue), 95%, 60%, 0.95);
-  }
+button:hover {
+  background: rgba(255, 255, 255, 0.11);
+  border-color: rgba(255, 255, 255, 0.2);
 }
 
-.song-section {
-  width: 90%;
-  max-width: 1000px;
-
-  margin: 0 auto 16px;
+.connect-btn {
+  padding: 8px 16px;
+  font-size: 13px;
 }
 
-.song-picker {
+/* ============================================================
+   Stage - the performance panel
+   ============================================================ */
+
+.stage {
+  width: 100%;
+  max-width: 620px;
+
+  background: var(--panel);
+  border: 1px solid var(--panel-line);
+  border-radius: var(--radius);
+
+  backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
+
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+
+  padding: 22px;
+
+  margin-bottom: auto;
+}
+
+.song-tabs {
   display: flex;
   justify-content: center;
-  flex-wrap: wrap;
+  gap: 6px;
 
-  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.song-tab {
+  flex: 1;
+
+  padding: 7px 10px;
+
+  font-size: 12px;
+
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+
+  background: transparent;
+  border-color: transparent;
+
+  color: var(--muted);
+}
+
+.song-tab.active {
+  background: rgba(91, 140, 255, 0.16);
+  border-color: rgba(91, 140, 255, 0.45);
+  color: var(--text);
+}
+
+.transport {
+  display: flex;
+  align-items: center;
+  gap: 14px;
 
   margin-bottom: 12px;
 }
 
-.song-btn {
-  padding: 7px 14px;
-
-  font-size: 14px;
-
-  color: white;
-
-  background: rgba(255, 255, 255, 0.07);
-
-  border: 1px solid rgba(255, 255, 255, 0.15);
-
-  border-radius: 9px;
-
-  cursor: pointer;
-
-  transition: 0.2s;
-}
-
-.song-btn:hover {
-  background: rgba(255, 255, 255, 0.15);
-}
-
-.song-btn.active {
-  background: #2b7cff;
-
-  box-shadow: 0 0 15px rgba(43, 124, 255, 0.7);
-}
-
-.song-transport {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-
-  gap: 14px;
-
-  margin-bottom: 10px;
-}
-
 .play-btn {
-  width: 90px;
-  height: 38px;
+  width: 74px;
+  padding: 9px 0;
 
-  font-size: 15px;
+  font-size: 13px;
+  font-weight: 600;
 
-  color: white;
-
-  background: rgba(255, 255, 255, 0.07);
-
-  border: 1px solid rgba(255, 255, 255, 0.15);
-
-  border-radius: 9px;
-
-  cursor: pointer;
-
-  transition: 0.2s;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  border-color: transparent;
 }
 
 .play-btn:hover {
-  background: rgba(255, 255, 255, 0.15);
+  transform: translateY(-1px);
+  background: linear-gradient(135deg, #6d99ff, #b07eff);
 }
 
-.song-time {
-  font-size: 14px;
-
+.time {
+  font-size: 12.5px;
   font-variant-numeric: tabular-nums;
+  color: var(--muted);
 
-  opacity: 0.8;
+  margin-left: auto;
+}
+
+/* Who performs the melody: you, or the site driving the Pico */
+.mode-toggle {
+  display: flex;
+
+  padding: 3px;
+
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 9px;
+}
+
+.mode-btn {
+  padding: 5px 11px;
+
+  font-size: 11.5px;
+
+  background: transparent;
+  border-color: transparent;
+  color: var(--muted);
+}
+
+.mode-btn.active {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: transparent;
+  color: var(--text);
+}
+
+.pico-tracks {
+  margin-top: 18px;
+  padding-top: 16px;
+
+  text-align: center;
+
+  border-top: 1px solid var(--panel-line);
+}
+
+.pico-track-list {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+
+  gap: 7px;
+}
+
+.pico-track {
+  padding: 7px 14px;
+
+  font-size: 12.5px;
+
+  background: rgba(120, 245, 170, 0.08);
+  border-color: rgba(120, 245, 170, 0.28);
+  color: rgba(210, 255, 230, 0.9);
+}
+
+.pico-track:hover {
+  background: rgba(120, 245, 170, 0.16);
+}
+
+.pico-track.active {
+  background: rgba(120, 245, 170, 0.24);
+  border-color: rgba(120, 245, 170, 0.7);
+  color: #fff;
+
+  box-shadow: 0 0 16px rgba(77, 255, 150, 0.45);
+}
+
+.track-load {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+
+  gap: 10px;
+
+  margin-top: 18px;
+  padding-top: 16px;
+
+  border-top: 1px solid var(--panel-line);
+}
+
+.load-btn {
+  padding: 6px 14px;
+  font-size: 12px;
+}
+
+.load-hint {
+  font-size: 11px;
+  color: var(--faint);
 }
 
 .progress-track {
-  width: 100%;
-  height: 10px;
+  height: 5px;
 
-  background: rgba(255, 255, 255, 0.09);
-
-  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.07);
+  border-radius: 99px;
 
   overflow: hidden;
 
-  margin-bottom: 14px;
+  margin-bottom: 24px;
 }
 
 .progress-fill {
   height: 100%;
 
-  background: linear-gradient(90deg, #2b7cff, #7d5cff);
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  box-shadow: 0 0 14px rgba(91, 140, 255, 0.7);
 
-  box-shadow: 0 0 12px rgba(43, 124, 255, 0.8);
-
-  /* rAF updates this every frame, so no transition */
   transition: none;
 }
 
-.now-playing {
-  text-align: center;
+/* Cue - what to play right now */
 
-  margin-bottom: 12px;
-}
-
-.now-label {
-  font-size: 12px;
-
-  letter-spacing: 1px;
-
-  text-transform: uppercase;
-
-  opacity: 0.55;
-
-  margin-bottom: 6px;
-}
-
-.now-note {
-  display: inline-flex;
+.cue {
+  display: flex;
+  flex-direction: column;
   align-items: center;
 
-  gap: 12px;
+  margin-bottom: 20px;
 }
 
-.now-button {
-  padding: 4px 12px;
+.label {
+  font-size: 10.5px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
 
-  font-size: 15px;
+  color: var(--faint);
 
-  background: #2b7cff;
-
-  border-radius: 8px;
-
-  box-shadow: 0 0 16px rgba(43, 124, 255, 0.7);
-}
-
-.now-name {
-  font-size: 40px;
-  font-weight: bold;
-
-  line-height: 1;
-}
-
-.now-note.idle .now-name {
-  opacity: 0.35;
-
-  font-size: 28px;
-}
-
-.upcoming {
-  text-align: center;
-}
-
-.upcoming-list {
-  display: flex;
-  justify-content: center;
-  flex-wrap: wrap;
-
-  gap: 8px;
-}
-
-.upcoming-chip {
-  display: inline-flex;
-  align-items: baseline;
-
-  gap: 7px;
-
-  padding: 5px 11px;
-
-  background: rgba(255, 255, 255, 0.06);
-
-  border: 1px solid rgba(255, 255, 255, 0.12);
-
-  border-radius: 8px;
-
-  font-size: 13px;
-}
-
-.upcoming-chip strong {
-  font-size: 16px;
-}
-
-.upcoming-chip em {
-  font-style: normal;
-
-  opacity: 0.7;
-}
-
-.upcoming-in {
-  opacity: 0.5;
-
-  font-variant-numeric: tabular-nums;
-}
-
-.upcoming-empty {
-  opacity: 0.4;
-}
-
-.scale-selector {
-  text-align: center;
   margin-bottom: 10px;
 }
 
-.scale-selector span {
-  display: block;
-
-  font-size: 15px;
-
-  font-weight: bold;
-
-  margin-bottom: 7px;
+.cue-note {
+  display: flex;
+  align-items: center;
+  gap: 14px;
 }
 
-.scale-buttons {
+.cue-name {
+  font-size: 54px;
+  font-weight: 700;
+  line-height: 1;
+
+  letter-spacing: -1px;
+}
+
+.cue-badge {
+  padding: 5px 11px;
+
+  font-size: 12px;
+  font-weight: 600;
+
+  background: rgba(91, 140, 255, 0.18);
+  border: 1px solid rgba(91, 140, 255, 0.5);
+  border-radius: 8px;
+}
+
+.cue.idle .cue-name {
+  font-size: 34px;
+  color: var(--faint);
+}
+
+.next-row {
   display: flex;
   justify-content: center;
-  gap: 7px;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.next-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+
+  padding: 5px 10px;
+
+  font-size: 12px;
+
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--panel-line);
+  border-radius: 8px;
+
+  color: var(--muted);
+}
+
+.next-chip b {
+  font-size: 13.5px;
+  color: var(--text);
+}
+
+/* ============================================================
+   Keyboard
+   ============================================================ */
+
+.board {
+  width: 100%;
+  max-width: 1040px;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+
+  margin-top: var(--gap);
+}
+
+.scale-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+
+  gap: 6px;
+
+  margin-bottom: 14px;
+}
+
+.octave-value {
+  min-width: 18px;
+
+  font-size: 13px;
+  font-weight: 600;
+
+  text-align: center;
+}
+
+.scale-row .label {
+  margin: 0 4px 0 0;
 }
 
 .scale-btn {
-  width: 44px;
-  height: 32px;
+  width: 34px;
+  padding: 5px 0;
 
-  font-size: 14px;
+  font-size: 12px;
 
-  border: none;
-
-  border-radius: 7px;
-
-  background: rgba(255, 255, 255, 0.08);
-
-  color: white;
-
-  cursor: pointer;
-
-  transition: 0.2s;
-}
-
-.scale-btn:hover {
-  background: rgba(255, 255, 255, 0.15);
+  background: transparent;
+  border-color: transparent;
+  color: var(--muted);
 }
 
 .scale-btn.active {
-  background: #2b7cff;
-
-  color: white;
-
-  box-shadow:
-    0 0 15px rgba(43, 124, 255, 0.7);
+  background: rgba(255, 255, 255, 0.1);
+  border-color: var(--panel-line);
+  color: var(--text);
 }
 
-.controls {
+.keyboard {
   display: flex;
+  gap: 6px;
 
+  padding: 10px;
+
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--panel-line);
+  border-radius: 14px;
+
+  backdrop-filter: blur(12px);
+}
+
+.key {
+  position: relative;
+
+  width: 42px;
+  height: 128px;
+
+  padding: 0 0 10px;
+
+  display: flex;
+  align-items: flex-end;
   justify-content: center;
 
-  gap: 10px;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.97),
+    rgba(214, 222, 240, 0.9)
+  );
 
-  margin-bottom: 12px;
+  border: none;
+  border-radius: 6px 6px 9px 9px;
+
+  color: #10121c;
+  font-size: 11px;
+  font-weight: 600;
+
+  transition: transform 0.12s, box-shadow 0.12s, background 0.12s;
 }
 
-.controls button {
-  width: 88px;
-
-  height: 38px;
-
-  font-size: 15px;
-
-  color: white;
-
-  background: rgba(255, 255, 255, 0.07);
-
-  border: 1px solid rgba(255, 255, 255, 0.15);
-
-  border-radius: 9px;
-
-  backdrop-filter: blur(10px);
-
-  cursor: pointer;
-
-  transition: 0.2s;
+.key-name {
+  opacity: 0.75;
 }
 
-.controls button:hover {
-  transform: translateY(-2px);
-
-  background: rgba(255, 255, 255, 0.15);
+/* Keys a physical Pico button currently plays */
+.key-mapped {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.99),
+    rgba(196, 212, 255, 0.95)
+  );
 }
 
-.controls button.active {
-  background: #2b7cff;
+.key-badge {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
 
-  color: white;
+  width: 17px;
+  height: 17px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  font-size: 10px;
+  font-weight: 700;
+
+  color: #fff;
+  background: hsl(var(--glow-hue), 75%, 45%);
+
+  border-radius: 50%;
+}
+
+.key:hover {
+  transform: translateY(-3px);
+}
+
+.key:active {
+  transform: translateY(2px);
+}
+
+/* Lit by an actual Pico button press */
+.key.pico-active {
+  background: hsl(var(--glow-hue), 92%, 64%);
+
+  color: #0b0b12;
+
+  transform: translateY(2px) scale(1.04);
 
   box-shadow:
-    0 0 15px rgba(43, 124, 255, 0.7);
+    0 0 24px 3px hsla(var(--glow-hue), 95%, 60%, 0.9),
+    0 0 56px 10px hsla(var(--glow-hue), 95%, 55%, 0.4);
+
+  transition: 0.04s;
+}
+
+/* The song is asking for this key - outline, not fill, so it reads
+   differently from an actual press */
+.key.key-target {
+  outline: 2px solid hsl(var(--glow-hue), 95%, 66%);
+  outline-offset: -2px;
+
+  animation: target-pulse 0.7s ease-in-out infinite;
+}
+
+@keyframes target-pulse {
+  0%, 100% {
+    box-shadow: 0 0 8px 1px hsla(var(--glow-hue), 95%, 62%, 0.45);
+  }
+  50% {
+    box-shadow: 0 0 20px 4px hsla(var(--glow-hue), 95%, 62%, 0.9);
+  }
+}
+
+/* ============================================================
+   Console - effects and sliders in one strip
+   ============================================================ */
+
+.console {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+
+  gap: 10px 18px;
+
+  margin-top: var(--gap);
+  padding: 12px 18px;
+
+  background: var(--panel);
+  border: 1px solid var(--panel-line);
+  border-radius: 999px;
+
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.fx-group {
+  display: flex;
+  gap: 6px;
+}
+
+.fx-btn {
+  padding: 6px 14px;
+  font-size: 12.5px;
+
+  background: transparent;
+  border-color: transparent;
+  color: var(--muted);
+}
+
+.fx-btn.active {
+  background: rgba(160, 107, 255, 0.18);
+  border-color: rgba(160, 107, 255, 0.5);
+  color: var(--text);
+}
+
+.divider {
+  width: 1px;
+  height: 22px;
+  background: var(--panel-line);
 }
 
 .slider {
   display: flex;
-
-  justify-content: center;
-
   align-items: center;
-
-  gap: 14px;
-
-  margin-top: 8px;
+  gap: 9px;
 }
 
-.slider label {
-  width: 125px;
-
-  text-align: right;
-
-  font-size: 14px;
+.slider .label {
+  margin: 0;
 }
 
 .slider input {
-  width: 230px;
+  width: 108px;
+
+  -webkit-appearance: none;
+  appearance: none;
+
+  height: 3px;
+  border-radius: 99px;
+
+  background: rgba(255, 255, 255, 0.18);
 
   cursor: pointer;
 }
 
-.visualizer {
-  position: fixed;
+.slider input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
 
-  top: 0;
+  width: 13px;
+  height: 13px;
 
-  left: 0;
+  border-radius: 50%;
+  background: var(--text);
 
-  width: 100vw;
-
-  height: 100vh;
-
-  z-index: 0;
-
-  overflow: hidden;
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.45);
 }
 
-.volume-control {
-  text-align: center;
-
-  margin-top: 15px;
+.slider input::-moz-range-thumb {
+  width: 13px;
+  height: 13px;
+  border: none;
+  border-radius: 50%;
+  background: var(--text);
 }
 
-.volume-control label {
-  font-size: 16px;
-}
+/* ============================================================
+   Responsive
+   ============================================================ */
 
-.volume-control input {
-  width: 230px;
-
-  margin-top: 8px;
-}
-
-@media (max-width: 700px) {
+@media (max-width: 720px) {
   .ui {
-    width: 94%;
-    padding-top: 30px;
+    padding: 0 14px 24px;
   }
 
-  h1 {
-    font-size: 2.3rem;
+  .topbar {
+    padding: 16px 0 20px;
+  }
+
+  .brand {
+    font-size: 0.95rem;
+    letter-spacing: 2px;
+  }
+
+  .stage {
+    padding: 18px 16px;
+  }
+
+  .cue-name {
+    font-size: 42px;
   }
 
   .key {
-    width: 34px;
-    height: 100px;
-    font-size: 14px;
+    width: 38px;
+    height: 106px;
+    font-size: 11px;
   }
 
-  .controls-section {
-    min-width: 0;
-    width: 90%;
+  .console {
+    border-radius: var(--radius);
   }
 
-  .slider label {
-    width: 105px;
+  .divider {
+    display: none;
   }
-
-  .slider input {
-    width: 180px;
-  }
-}
-
-.bottom-ui {
-  width: 90%;
-  max-width: 1000px;
-
-  margin-top: auto;
-
-  display: flex;
-  justify-content: center;
-  align-items: flex-end;
-
-  gap: 20px;
 }

@@ -1,30 +1,36 @@
-import { useState } from "react";
+import { ROOTS, SPREADS, scaleNotes, buttonFor } from "../scales";
 
-function Keyboard({ synth, activeNotes, targetNotes = [] }) {
-  const scales = {
-    C: ["C4", "D4", "E4", "F4", "G4", "A4", "B4", "C5"],
-    D: ["D4", "E4", "F#4", "G4", "A4", "B4", "C#5", "D5"],
-    G: ["G4", "A4", "B4", "C5", "D5", "E5", "F#5", "G5"],
-  };
+// Two octaves are shown at once so cross-octave chords and wide melodies are
+// reachable without switching scales mid-song.
 
-  // Each note glows its own hue so different physical buttons are
-  // visually distinguishable, not just "something lit up".
-  const noteHues = {
-    C: 205,
-    D: 275,
-    E: 330,
-    F: 15,
-    G: 45,
-    A: 95,
-    B: 160,
-  };
+const noteHues = {
+  C: 205,
+  D: 275,
+  E: 330,
+  F: 15,
+  G: 45,
+  A: 95,
+  B: 160,
+};
 
-  const hueFor = (note) => {
-    const base = noteHues[note[0]] ?? 205;
-    return note.includes("#") ? base + 18 : base;
-  };
+function hueFor(note) {
+  const base = noteHues[note[0]] ?? 205;
+  return note.includes("#") ? base + 18 : base;
+}
 
-  const [scale, setScale] = useState("C");
+function Keyboard({
+  synth,
+  activeNotes,
+  targetNotes = [],
+  root,
+  setRoot,
+  octave,
+  setOctave,
+  spread,
+  setSpread,
+  buttonNotes,
+}) {
+  const notes = scaleNotes(root, octave, 2);
 
   const startNote = async (note) => {
     await synth.current.context.resume();
@@ -36,71 +42,84 @@ function Keyboard({ synth, activeNotes, targetNotes = [] }) {
   };
 
   return (
-    <section className="keyboard-section">
-      <h2>Keyboard</h2>
+    <section className="board">
+      <div className="scale-row">
+        <span className="label">Key</span>
 
-      <div className="scale-selector">
-        <span>Scale</span>
-
-        <div className="scale-buttons">
+        {ROOTS.map((name) => (
           <button
-            className={
-              scale === "C"
-                ? "scale-btn active"
-                : "scale-btn"
-            }
-            onClick={() => setScale("C")}
+            key={name}
+            className={root === name ? "scale-btn active" : "scale-btn"}
+            onClick={() => setRoot(name)}
           >
-            C
+            {name}
           </button>
+        ))}
 
-          <button
-            className={
-              scale === "D"
-                ? "scale-btn active"
-                : "scale-btn"
-            }
-            onClick={() => setScale("D")}
-          >
-            D
-          </button>
+        <span className="divider" />
 
+        <span className="label">Octave</span>
+
+        <button
+          className="scale-btn"
+          onClick={() => setOctave(Math.max(2, octave - 1))}
+        >
+          -
+        </button>
+
+        <span className="octave-value">{octave}</span>
+
+        <button
+          className="scale-btn"
+          onClick={() => setOctave(Math.min(6, octave + 1))}
+        >
+          +
+        </button>
+
+        <span className="divider" />
+
+        <span className="label">Buttons</span>
+
+        {SPREADS.map((name) => (
           <button
-            className={
-              scale === "G"
-                ? "scale-btn active"
-                : "scale-btn"
-            }
-            onClick={() => setScale("G")}
+            key={name}
+            className={spread === name ? "scale-btn active" : "scale-btn"}
+            onClick={() => setSpread(name)}
           >
-            G
+            {name}
           </button>
-        </div>
+        ))}
       </div>
 
-      <div className="keyboard-wrapper">
-        <div className="keyboard">
-          {scales[scale].map((note) => (
+      <div className="keyboard">
+        {notes.map((note, i) => {
+          const btn = buttonFor(note, buttonNotes);
+
+          return (
             <button
-              key={note}
+              key={note + i}
               style={{ "--glow-hue": hueFor(note) }}
               className={
                 [
                   "key",
                   activeNotes.includes(note) ? "pico-active" : "",
                   targetNotes.includes(note) ? "key-target" : "",
+                  btn ? "key-mapped" : "",
                 ]
                   .filter(Boolean)
                   .join(" ")
               }
               onMouseDown={() => startNote(note)}
               onMouseUp={stopNote}
-              onMouseLeave={stopNote}
+              onMouseLeave={(e) => {
+                if (e.buttons) stopNote();
+              }}
             >
-              {note.replace("4", "").replace("5", "")}
+              {btn && <span className="key-badge">{btn}</span>}
+              <span className="key-name">{note}</span>
             </button>
-          ))}
-        </div>
+          );
+        })}
       </div>
     </section>
   );

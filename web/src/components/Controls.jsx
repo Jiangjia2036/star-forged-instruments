@@ -1,3 +1,5 @@
+const EFFECTS = ["Warp", "Echo", "Chorus"];
+
 function Controls({
   volume,
   setVolume,
@@ -15,52 +17,27 @@ function Controls({
   }
 
   return (
-    <section className="controls-section">
-      <h2>Controls</h2>
-
-      <div className="controls">
-        <button
-          className={
-            selectedEffect === "Warp"
-              ? "active"
-              : ""
-          }
-          onClick={() =>
-            handleEffectClick("Warp")
-          }
-        >
-          Warp
-        </button>
-
-        <button
-          className={
-            selectedEffect === "Echo"
-              ? "active"
-              : ""
-          }
-          onClick={() =>
-            handleEffectClick("Echo")
-          }
-        >
-          Echo
-        </button>
-
-        <button
-          className={
-            selectedEffect === "Chorus"
-              ? "active"
-              : ""
-          }
-          onClick={() =>
-            handleEffectClick("Chorus")
-          }
-        >
-          Chorus
-        </button>
+    <section className="console">
+      <div className="fx-group">
+        {EFFECTS.map((effect) => (
+          <button
+            key={effect}
+            className={
+              selectedEffect === effect
+                ? "fx-btn active"
+                : "fx-btn"
+            }
+            onClick={() => handleEffectClick(effect)}
+          >
+            {effect}
+          </button>
+        ))}
       </div>
 
+      <div className="divider" />
+
       <div className="slider">
-        <label>Effect Strength</label>
+        <span className="label">Depth</span>
 
         <input
           type="range"
@@ -68,26 +45,22 @@ function Controls({
           max="100"
           value={effectStrength}
           onChange={(e) =>
-            setEffectStrength(
-              Number(e.target.value)
-            )
+            setEffectStrength(Number(e.target.value))
           }
         />
       </div>
 
+      <div className="divider" />
+
       <div className="slider">
-        <label>Volume</label>
+        <span className="label">Volume</span>
 
         <input
           type="range"
           min="-40"
           max="0"
           value={volume}
-          onChange={(e) =>
-            setVolume(
-              Number(e.target.value)
-            )
-          }
+          onChange={(e) => setVolume(Number(e.target.value))}
         />
       </div>
     </section>

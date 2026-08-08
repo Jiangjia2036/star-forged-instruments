@@ -7,12 +7,8 @@
 // buttons wired to the Pico (GP16, GP17, GP18). Add more once more buttons
 // exist - nothing else needs to change.
 
-// Which physical button plays each note. Mirrors NOTES in PicoCode/main.py.
-export const NOTE_TO_BUTTON = {
-  C4: 1,
-  D4: 2,
-  E4: 3,
-};
+// Which button plays a given note is no longer fixed - it depends on the
+// selected key, octave and button layout. See buttonFor() in scales.js.
 
 function buildTrack(bpm, sequence) {
   const secondsPerBeat = 60 / bpm;
@@ -104,6 +100,17 @@ export const SONGS = [
       ["C4", 1], ["E4", 1], ["D4", 1], ["C4", 1],
       ["C4", 4],
     ]
+  ),
+
+  // Backing track with no chart - it just plays and you improvise over it.
+  // The file lives in web/public/audio, so it plays through the browser.
+  // For speaker playback, put a 22 kHz mono WAV on the Pico instead.
+  makeSong(
+    "dark-horse",
+    "Dark Horse (backing)",
+    132,
+    [],
+    { audioUrl: "/audio/dark-horse.m4a" }
   ),
 ];
 

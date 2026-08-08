@@ -7,6 +7,7 @@ import Controls from "./components/Controls";
 import Visualizer from "./components/Visualizer";
 import SongPlayer from "./components/SongPlayer";
 import { PicoSerial, isSerialSupported } from "./pico-serial";
+import { buttonNotes as computeButtonNotes } from "./scales";
 
 function App() {
   const delay = useRef(null);
@@ -31,6 +32,20 @@ function App() {
 
   // Notes the current song wants the performer to press right now
   const [targetNotes, setTargetNotes] = useState([]);
+
+  // Song progress, surfaced as a bar across the top of the page
+  const [songProgress, setSongProgress] = useState(0);
+
+  // WAV backing tracks stored in the Pico's own flash
+  const [picoTracks, setPicoTracks] = useState([]);
+  const [picoTrackPlaying, setPicoTrackPlaying] = useState(null);
+
+  // Scale / octave / button layout. Changing any of these retunes the Pico.
+  const [root, setRoot] = useState("C");
+  const [octave, setOctave] = useState(4);
+  const [spread, setSpread] = useState("steps");
+
+  const picoNotes = computeButtonNotes(root, octave, spread);
 
   const serialRef = useRef(null);
   // mirror of activeNotes for use inside serial callbacks
@@ -115,6 +130,37 @@ function App() {
       setSelectedEffect(effectMatch[1] === "ON" ? "Echo" : "");
       return;
     }
+
+    // Backing tracks living in the Pico's flash
+    if (line.startsWith("TRACKS_")) {
+      const names = line
+        .slice(7)
+        .split("|")
+        .filter(Boolean);
+      console.log("Pico tracks:", names);
+      setPicoTracks(names);
+      return;
+    }
+
+    const posMatch = line.match(/^TRACK_POS_(\d+)$/);
+    if (posMatch) {
+      // Position reported by the Pico as it plays, so the bar follows the
+      // speaker instead of a timer that could drift
+      setSongProgress(Math.min(100, Number(posMatch[1])));
+      return;
+    }
+
+    if (line === "TRACK_END" || line === "TRACK_STOPPED") {
+      setPicoTrackPlaying(null);
+      setSongProgress(0);
+      return;
+    }
+
+    if (line.startsWith("TRACK_ERROR_")) {
+      console.log("Pico track error:", line.slice(12));
+      setPicoTrackPlaying(null);
+      return;
+    }
     // PICO_READY and any debug lines land here
   };
 
@@ -126,7 +172,13 @@ function App() {
     try {
       serialRef.current = new PicoSerial({
         onLine: handleLine,
-        onConnect: () => setPicoConnected(true),
+        onConnect: () => {
+          setPicoConnected(true);
+          // ask what backing tracks are on the board
+          setTimeout(() => {
+            serialRef.current?.send("TRACK_LIST");
+          }, 200);
+        },
         onDisconnect: () => {
           setPicoConnected(false);
           updateActiveNotes([]);
@@ -155,54 +207,101 @@ function App() {
     serialRef.current?.send("CMD_OFF_" + note);
   };
 
+
+  // Backing tracks played by the Pico itself, mixed with your beeps
+  const playPicoTrack = (name) => {
+    console.log("Pico track play:", name);
+    setPicoTrackPlaying(name);
+    serialRef.current?.send("TRACK_PLAY_" + name);
+  };
+
+  const stopPicoTrack = () => {
+    serialRef.current?.send("TRACK_STOP");
+    setPicoTrackPlaying(null);
+    setSongProgress(0);
+  };
+
+
+  // Retune the instrument whenever the key, octave or button layout changes,
+  // so the physical buttons always play the scale shown on screen.
+  const tuneCommand = "TUNE_" + picoNotes.join("_");
+
+  useEffect(() => {
+    if (!picoConnected) return;
+
+    console.log("Tuning Pico:", tuneCommand);
+    serialRef.current?.send(tuneCommand);
+  }, [picoConnected, tuneCommand]);
+
   return (
     <div className="app">
       <Visualizer analyzer={analyzer} />
 
+      {/* Song progress across the very top of the page */}
+      <div className="top-progress">
+        <div
+          className="top-progress-fill"
+          style={{ width: songProgress + "%" }}
+        />
+      </div>
+
       <div className="ui">
-        <h1>Star Forged Instruments</h1>
+        <header className="topbar">
+          <h1 className="brand">Star Forged Instruments</h1>
 
-        <div className="pico-bar">
-          <button
-            className="connect-btn"
-            onClick={picoConnected ? disconnectPico : connectPico}
-          >
-            {picoConnected ? "Disconnect Pico" : "Connect Pico"}
-          </button>
+          <div className="pico-bar">
+            <span
+              className={
+                picoConnected
+                  ? "pico-status on"
+                  : "pico-status off"
+              }
+            >
+              {picoConnected ? "Connected" : "Disconnected"}
+            </span>
 
-          <span
-            className={
-              picoConnected
-                ? "pico-status on"
-                : "pico-status off"
-            }
-          >
-            Pico: {picoConnected ? "Connected" : "Disconnected"}
-          </span>
-        </div>
+            <button
+              className="connect-btn"
+              onClick={picoConnected ? disconnectPico : connectPico}
+            >
+              {picoConnected ? "Disconnect" : "Connect Pico"}
+            </button>
+          </div>
+        </header>
 
         <SongPlayer
           onNoteOn={songNoteOn}
           onNoteOff={songNoteOff}
           onTargetsChange={setTargetNotes}
+          onProgress={setSongProgress}
+          buttonNotes={picoNotes}
+          picoTracks={picoTracks}
+          picoTrackPlaying={picoTrackPlaying}
+          onPlayPicoTrack={playPicoTrack}
+          onStopPicoTrack={stopPicoTrack}
         />
 
-        <div className="bottom-ui">
-          <Keyboard
-            synth={synth}
-            activeNotes={activeNotes}
-            targetNotes={targetNotes}
-          />
+        <Keyboard
+          synth={synth}
+          activeNotes={activeNotes}
+          targetNotes={targetNotes}
+          root={root}
+          setRoot={setRoot}
+          octave={octave}
+          setOctave={setOctave}
+          spread={spread}
+          setSpread={setSpread}
+          buttonNotes={picoNotes}
+        />
 
-          <Controls
-            volume={volume}
-            setVolume={setVolume}
-            effectStrength={effectStrength}
-            setEffectStrength={setEffectStrength}
-            selectedEffect={selectedEffect}
-            setSelectedEffect={setSelectedEffect}
-          />
-        </div>
+        <Controls
+          volume={volume}
+          setVolume={setVolume}
+          effectStrength={effectStrength}
+          setEffectStrength={setEffectStrength}
+          selectedEffect={selectedEffect}
+          setSelectedEffect={setSelectedEffect}
+        />
       </div>
     </div>
   );
