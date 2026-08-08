@@ -32,6 +32,30 @@ function App() {
   // mirror of activeNotes for use inside serial callbacks
   const activeNotesRef = useRef([]);
 
+  // Browsers start the audio context suspended and only Tone.start() reliably
+  // unlocks it. pointerdown fires before mousedown, so the very first click
+  // anywhere - a key, a scale button, Connect Pico - starts audio in time.
+  useEffect(() => {
+    const unlock = async () => {
+      try {
+        await Tone.start();
+      } catch (err) {
+        console.log("Audio unlock failed:", err.message);
+      }
+
+      if (Tone.getContext().state === "running") {
+        console.log("Audio context running");
+        window.removeEventListener("pointerdown", unlock);
+      }
+    };
+
+    window.addEventListener("pointerdown", unlock);
+
+    return () => {
+      window.removeEventListener("pointerdown", unlock);
+    };
+  }, []);
+
   useEffect(() => {
     synth.current.volume.value = volume;
   }, [volume]);
@@ -50,27 +74,24 @@ function App() {
     setActiveNotes(notes);
   };
 
+  // Pico input is VISUAL ONLY. The sound for a physical button press comes
+  // from the speaker wired to the Pico's own I2S output, so the browser must
+  // not play the note as well or it would double up and lag behind.
+
   const picoNoteOn = (note) => {
-    console.log("Playing:", note);
     console.log("Visual:", note, "ON");
     const next = [
       ...activeNotesRef.current.filter((n) => n !== note),
       note,
     ];
     updateActiveNotes(next);
-    synth.current.triggerAttack(note);
   };
 
   const picoNoteOff = (note) => {
     console.log("Visual:", note, "OFF");
-    const next = activeNotesRef.current.filter((n) => n !== note);
-    updateActiveNotes(next);
-    if (next.length > 0) {
-      // the synth is monophonic: fall back to the most recent held note
-      synth.current.triggerAttack(next[next.length - 1]);
-    } else {
-      synth.current.triggerRelease();
-    }
+    updateActiveNotes(
+      activeNotesRef.current.filter((n) => n !== note)
+    );
   };
 
   const handleLine = (line) => {
@@ -99,14 +120,12 @@ function App() {
       return;
     }
     try {
-      await Tone.start(); // the click gesture unlocks audio for serial-driven notes
       serialRef.current = new PicoSerial({
         onLine: handleLine,
         onConnect: () => setPicoConnected(true),
         onDisconnect: () => {
           setPicoConnected(false);
           updateActiveNotes([]);
-          synth.current.triggerRelease();
         },
       });
       await serialRef.current.connect();

@@ -7,6 +7,23 @@ function Keyboard({ synth, activeNotes }) {
     G: ["G4", "A4", "B4", "C5", "D5", "E5", "F#5", "G5"],
   };
 
+  // Each note glows its own hue so different physical buttons are
+  // visually distinguishable, not just "something lit up".
+  const noteHues = {
+    C: 205,
+    D: 275,
+    E: 330,
+    F: 15,
+    G: 45,
+    A: 95,
+    B: 160,
+  };
+
+  const hueFor = (note) => {
+    const base = noteHues[note[0]] ?? 205;
+    return note.includes("#") ? base + 18 : base;
+  };
+
   const [scale, setScale] = useState("C");
 
   const startNote = async (note) => {
@@ -66,6 +83,7 @@ function Keyboard({ synth, activeNotes }) {
           {scales[scale].map((note) => (
             <button
               key={note}
+              style={{ "--glow-hue": hueFor(note) }}
               className={
                 activeNotes.includes(note)
                   ? "key pico-active"
