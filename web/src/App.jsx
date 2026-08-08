@@ -6,8 +6,17 @@ import Keyboard from "./components/Keyboard";
 import Controls from "./components/Controls";
 import Visualizer from "./components/Visualizer";
 import SongPlayer from "./components/SongPlayer";
+import InstrumentPage from "./components/InstrumentPage";
+import BandPage from "./components/BandPage";
 import { PicoSerial, isSerialSupported } from "./pico-serial";
 import { buttonNotes as computeButtonNotes } from "./scales";
+
+const PAGE_IDS = new Set(["perform", "instrument", "band"]);
+
+function pageFromHash() {
+  const requested = window.location.hash.replace(/^#\/?/, "");
+  return PAGE_IDS.has(requested) ? requested : "perform";
+}
 
 function App() {
   const delay = useRef(null);
@@ -40,6 +49,10 @@ function App() {
   const [picoTracks, setPicoTracks] = useState([]);
   const [picoTrackPlaying, setPicoTrackPlaying] = useState(null);
 
+  // Each section has its own hash URL. The UFO visualizer stays mounted behind
+  // every view, while the keyboard remains exclusive to the Perform page.
+  const [page, setPage] = useState(pageFromHash);
+
   // Scale / octave / button layout. Changing any of these retunes the Pico.
   const [root, setRoot] = useState("C");
   const [octave, setOctave] = useState(4);
@@ -50,6 +63,18 @@ function App() {
   const serialRef = useRef(null);
   // mirror of activeNotes for use inside serial callbacks
   const activeNotesRef = useRef([]);
+
+  useEffect(() => {
+    const syncPageToHash = () => setPage(pageFromHash());
+    window.addEventListener("hashchange", syncPageToHash);
+
+    return () => window.removeEventListener("hashchange", syncPageToHash);
+  }, []);
+
+  const navigateToPage = (nextPage) => {
+    setPage(nextPage);
+    window.location.hash = nextPage === "perform" ? "" : nextPage;
+  };
 
   // Browsers start the audio context suspended and only Tone.start() reliably
   // unlocks it. pointerdown fires before mousedown, so the very first click
@@ -98,15 +123,30 @@ function App() {
     const pico = serialRef.current;
     if (!pico) return;
 
+    const depth = Math.round(effectStrength);
+
     if (selectedEffect === "Warp") {
+      // saw voice with pitch wobble
       pico.send("FX_WAVE_SAW");
+      pico.send("FX_VIB_" + depth);
       pico.send("FX_TREM_0");
+      pico.send("FX_ECHO_OFF");
+    } else if (selectedEffect === "Echo") {
+      pico.send("FX_WAVE_SINE");
+      pico.send("FX_VIB_0");
+      pico.send("FX_TREM_0");
+      pico.send("FX_ECHO_ON");
     } else if (selectedEffect === "Chorus") {
+      // square voice with amplitude wobble
       pico.send("FX_WAVE_SQUARE");
-      pico.send("FX_TREM_" + Math.round(effectStrength));
+      pico.send("FX_VIB_0");
+      pico.send("FX_TREM_" + depth);
+      pico.send("FX_ECHO_OFF");
     } else {
       pico.send("FX_WAVE_SINE");
+      pico.send("FX_VIB_0");
       pico.send("FX_TREM_0");
+      pico.send("FX_ECHO_OFF");
     }
   }, [picoConnected, selectedEffect, effectStrength]);
 
@@ -239,6 +279,10 @@ function App() {
     serialRef.current?.send("CMD_OFF_" + note);
   };
 
+  const silenceSongNotes = () => {
+    serialRef.current?.send("CMD_ALLOFF");
+  };
+
 
   // Backing tracks played by the Pico itself, mixed with your beeps
   const playPicoTrack = (name) => {
@@ -279,7 +323,25 @@ function App() {
 
       <div className="ui">
         <header className="topbar">
-          <h1 className="brand">Star Forged Instruments</h1>
+          <h1 className="brand">Star Forged</h1>
+
+          <nav className="nav">
+            {[
+              ["perform", "Perform"],
+              ["instrument", "Instrument"],
+              ["band", "Band"],
+            ].map(([id, label]) => (
+              <button
+                key={id}
+                className={page === id ? "nav-btn active" : "nav-btn"}
+                type="button"
+                aria-current={page === id ? "page" : undefined}
+                onClick={() => navigateToPage(id)}
+              >
+                {label}
+              </button>
+            ))}
+          </nav>
 
           <div className="pico-bar">
             <span
@@ -301,39 +363,54 @@ function App() {
           </div>
         </header>
 
-        <SongPlayer
-          onNoteOn={songNoteOn}
-          onNoteOff={songNoteOff}
-          onTargetsChange={setTargetNotes}
-          onProgress={setSongProgress}
-          buttonNotes={picoNotes}
-          picoTracks={picoTracks}
-          picoTrackPlaying={picoTrackPlaying}
-          onPlayPicoTrack={playPicoTrack}
-          onStopPicoTrack={stopPicoTrack}
-        />
+        {/* Scrolling section. The starfield behind it and the keyboard
+            below it stay where they are. */}
+        <main className="page-area">
+          {page === "perform" && (
+            <SongPlayer
+              onNoteOn={songNoteOn}
+              onNoteOff={songNoteOff}
+              onAllNotesOff={silenceSongNotes}
+              onTargetsChange={setTargetNotes}
+              onProgress={setSongProgress}
+              buttonNotes={picoNotes}
+              picoTracks={picoTracks}
+              picoTrackPlaying={picoTrackPlaying}
+              onPlayPicoTrack={playPicoTrack}
+              onStopPicoTrack={stopPicoTrack}
+            />
+          )}
 
-        <Keyboard
-          synth={synth}
-          activeNotes={activeNotes}
-          targetNotes={targetNotes}
-          root={root}
-          setRoot={setRoot}
-          octave={octave}
-          setOctave={setOctave}
-          spread={spread}
-          setSpread={setSpread}
-          buttonNotes={picoNotes}
-        />
+          {page === "instrument" && <InstrumentPage />}
 
-        <Controls
-          volume={volume}
-          setVolume={setVolume}
-          effectStrength={effectStrength}
-          setEffectStrength={setEffectStrength}
-          selectedEffect={selectedEffect}
-          setSelectedEffect={setSelectedEffect}
-        />
+          {page === "band" && <BandPage />}
+        </main>
+
+        {page === "perform" && (
+          <div className="dock">
+            <Keyboard
+              synth={synth}
+              activeNotes={activeNotes}
+              targetNotes={targetNotes}
+              root={root}
+              setRoot={setRoot}
+              octave={octave}
+              setOctave={setOctave}
+              spread={spread}
+              setSpread={setSpread}
+              buttonNotes={picoNotes}
+            />
+
+            <Controls
+              volume={volume}
+              setVolume={setVolume}
+              effectStrength={effectStrength}
+              setEffectStrength={setEffectStrength}
+              selectedEffect={selectedEffect}
+              setSelectedEffect={setSelectedEffect}
+            />
+          </div>
+        )}
       </div>
     </div>
   );

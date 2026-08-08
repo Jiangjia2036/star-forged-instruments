@@ -85,6 +85,74 @@ POS_REPORT_CHUNKS = 22
 
 
 # ------------------------------------------------------------
+# Envelope (ADSR)
+# ------------------------------------------------------------
+
+# Borrowed from CircuitPython's synthio.Envelope. Gating an oscillator
+# straight on and off leaves a step discontinuity in the waveform, which the
+# speaker reproduces as a click on every press and release. Ramping the
+# amplitude instead removes the click and gives the instrument an attack,
+# which is most of what makes a synth sound played rather than switched.
+#
+# Same five parameters synthio uses, in milliseconds and 0-1 levels.
+
+ENV_MAX = 65536
+
+ENV_ATTACK_MS = 8
+ENV_DECAY_MS = 140
+ENV_SUSTAIN = 0.78
+ENV_RELEASE_MS = 110
+
+# Milliseconds of audio produced per loop iteration
+CHUNK_MS = CHUNK_SAMPLES * 1000.0 / SAMPLE_RATE
+
+ENV_SUSTAIN_LEVEL = int(ENV_MAX * ENV_SUSTAIN)
+
+ENV_ATTACK_STEP = int(ENV_MAX * CHUNK_MS / ENV_ATTACK_MS)
+ENV_DECAY_STEP = int((ENV_MAX - ENV_SUSTAIN_LEVEL) * CHUNK_MS / ENV_DECAY_MS)
+ENV_RELEASE_STEP = int(ENV_MAX * CHUNK_MS / ENV_RELEASE_MS)
+
+
+def env_advance(level, gate):
+    """One chunk of ADSR movement for a single voice."""
+
+    if gate:
+
+        if level < ENV_MAX:
+            level += ENV_ATTACK_STEP
+            if level > ENV_MAX:
+                level = ENV_MAX
+
+        elif level > ENV_SUSTAIN_LEVEL:
+            level -= ENV_DECAY_STEP
+            if level < ENV_SUSTAIN_LEVEL:
+                level = ENV_SUSTAIN_LEVEL
+
+    else:
+
+        if level > 0:
+            level -= ENV_RELEASE_STEP
+            if level < 0:
+                level = 0
+
+    return level
+
+
+# ------------------------------------------------------------
+# Vibrato
+# ------------------------------------------------------------
+
+# synthio drives pitch with an LFO on Note.bend. Same idea here: an LFO
+# nudges the phase increment, which shifts pitch rather than volume.
+# Depth 100 is about a semitone either side.
+VIB_MAX_RATIO = 0.06
+
+# synthio recalculates its LFOs every 256 samples. A chunk here is 250
+# samples, so updating the modulation once per chunk lands at essentially
+# the same resolution for free.
+
+
+# ------------------------------------------------------------
 # Flex Filter Range
 # ------------------------------------------------------------
 
@@ -307,9 +375,12 @@ wav_buf = array.array('h', [0] * CHUNK_SAMPLES)
 
 @micropython.native
 def render_chunk(
-    play_1,
-    play_2,
-    play_3,
+    amp_1,
+    amp_2,
+    amp_3,
+    step_1,
+    step_2,
+    step_3,
     echo_active,
     vol_multiplier,
     alpha,
@@ -341,16 +412,23 @@ def render_chunk(
         # A. Dry signal
         # ------------------------------------------------
 
+        # Each voice is scaled by its own envelope, which slides smoothly
+        # across the chunk instead of jumping at the boundary.
+
         dry_signal = 0
 
-        if play_1:
-            dry_signal += tbl[(ph_1 >> 16) & mask]
+        if amp_1 > 0:
+            dry_signal += (tbl[(ph_1 >> 16) & mask] * (amp_1 >> 8)) >> 8
 
-        if play_2:
-            dry_signal += tbl[(ph_2 >> 16) & mask]
+        if amp_2 > 0:
+            dry_signal += (tbl[(ph_2 >> 16) & mask] * (amp_2 >> 8)) >> 8
 
-        if play_3:
-            dry_signal += tbl[(ph_3 >> 16) & mask]
+        if amp_3 > 0:
+            dry_signal += (tbl[(ph_3 >> 16) & mask] * (amp_3 >> 8)) >> 8
+
+        amp_1 += step_1
+        amp_2 += step_2
+        amp_3 += step_3
 
         # Oscillators run continuously so a key never restarts mid-cycle
         ph_1 = (ph_1 + inc_1) & pmask
@@ -481,8 +559,19 @@ def run_dsp_engine():
 
     rx = ""
 
+    # Per-voice envelope levels, 0 to ENV_MAX
+    amp_1 = 0
+    amp_2 = 0
+    amp_3 = 0
+
     # Effects controlled from the website
     wave_index = 0
+
+    vib_depth = 0
+    vib_rate = 5.5
+    vib_tick = 0
+
+    web_echo = False
 
     # Tremolo is computed once per chunk rather than per sample. At 88 chunks
     # a second that is far above the few Hz an LFO needs, and it costs the
@@ -547,6 +636,22 @@ def run_dsp_engine():
                     if name in WAVE_NAMES:
                         wave_index = WAVE_NAMES.index(name)
                         print("FX_WAVE_%s_OK" % name)
+
+                elif rx.startswith("FX_VIB_"):
+
+                    try:
+                        depth = int(rx[7:])
+                    except ValueError:
+                        depth = -1
+
+                    if 0 <= depth <= 100:
+                        vib_depth = depth
+                        print("FX_VIB_%d_OK" % depth)
+
+                elif rx.startswith("FX_ECHO_"):
+
+                    web_echo = rx[8:] == "ON"
+                    print("FX_ECHO_%s_OK" % ("ON" if web_echo else "OFF"))
 
                 elif rx.startswith("FX_TREM_"):
 
@@ -669,7 +774,8 @@ def run_dsp_engine():
         play_2 = press_2 or remote[1]
         play_3 = press_3 or remote[2]
 
-        echo_active = not echo_switch.value()
+        # Physical switch or the website can each turn the echo on
+        echo_active = (not echo_switch.value()) or web_echo
 
         vol_multiplier = volume_pot.read_u16()
 
@@ -778,27 +884,72 @@ def run_dsp_engine():
 
 
         # ====================================================
+        # Envelopes + Vibrato
+        # ====================================================
+
+        # Where each voice's amplitude should land by the end of this chunk
+        next_1 = env_advance(amp_1, play_1)
+        next_2 = env_advance(amp_2, play_2)
+        next_3 = env_advance(amp_3, play_3)
+
+        # The renderer walks from the current level to that target one
+        # sample at a time, so there is no step at the chunk boundary
+        step_1 = (next_1 - amp_1) // CHUNK_SAMPLES
+        step_2 = (next_2 - amp_2) // CHUNK_SAMPLES
+        step_3 = (next_3 - amp_3) // CHUNK_SAMPLES
+
+        if vib_depth:
+
+            vib_tick += 1
+
+            wobble = math.sin(
+                2 * math.pi * vib_rate
+                * vib_tick * CHUNK_SAMPLES / SAMPLE_RATE
+            )
+
+            bend = 1.0 + (vib_depth / 100.0) * VIB_MAX_RATIO * wobble
+
+            use_1 = int(inc_1 * bend)
+            use_2 = int(inc_2 * bend)
+            use_3 = int(inc_3 * bend)
+
+        else:
+            use_1 = inc_1
+            use_2 = inc_2
+            use_3 = inc_3
+
+
+        # ====================================================
         # Render + Send Audio
         # ====================================================
 
         ph_1, ph_2, ph_3, delay_ptr, y_prev = render_chunk(
-            play_1,
-            play_2,
-            play_3,
+            amp_1,
+            amp_2,
+            amp_3,
+            step_1,
+            step_2,
+            step_3,
             echo_active,
             vol_multiplier,
             alpha,
             ph_1,
             ph_2,
             ph_3,
-            inc_1,
-            inc_2,
-            inc_3,
+            use_1,
+            use_2,
+            use_3,
             delay_ptr,
             y_prev,
             track_on,
             WAVES[wave_index]
         )
+
+        # Land on the exact envelope targets so rounding in the per-sample
+        # step cannot accumulate drift over time
+        amp_1 = next_1
+        amp_2 = next_2
+        amp_3 = next_3
 
         audio_out.write(out_buf)
 
