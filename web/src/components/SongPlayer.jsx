@@ -21,6 +21,7 @@ function formatTime(seconds) {
 function SongPlayer({
   onNoteOn,
   onNoteOff,
+  onAllNotesOff,
   onTargetsChange,
   onProgress,
   buttonNotes = [],
@@ -50,7 +51,14 @@ function SongPlayer({
   const statesRef = useRef([]);
 
   const cbRef = useRef({});
-  cbRef.current = { onNoteOn, onNoteOff, onTargetsChange, onProgress, mode };
+  cbRef.current = {
+    onNoteOn,
+    onNoteOff,
+    onAllNotesOff,
+    onTargetsChange,
+    onProgress,
+    mode,
+  };
 
   const silenceAll = () => {
     const states = statesRef.current;
@@ -81,6 +89,7 @@ function SongPlayer({
     }
 
     silenceAll();
+    cbRef.current.onAllNotesOff?.();
     setElapsed(0);
     cbRef.current.onProgress(0);
   };
@@ -88,6 +97,10 @@ function SongPlayer({
   useEffect(() => {
     return () => {
       if (frameRef.current) cancelAnimationFrame(frameRef.current);
+      if (audioRef.current) audioRef.current.pause();
+      cbRef.current.onAllNotesOff?.();
+      cbRef.current.onTargetsChange([]);
+      cbRef.current.onProgress(0);
     };
   }, []);
 
@@ -246,7 +259,10 @@ function SongPlayer({
         <div className="mode-toggle">
           <button
             className={mode === "along" ? "mode-btn active" : "mode-btn"}
-            onClick={() => setMode("along")}
+            onClick={() => {
+              if (mode === "auto") cbRef.current.onAllNotesOff?.();
+              setMode("along");
+            }}
           >
             You play
           </button>
