@@ -3,9 +3,10 @@
 // A song is a sequence of [note, beats] pairs. `null` is a rest. Times are
 // derived from bpm so the chart stays readable and easy to edit.
 //
-// Notes are limited to C4 / D4 / E4 because those are the three physical
-// buttons wired to the Pico (GP16, GP17, GP18). Add more once more buttons
-// exist - nothing else needs to change.
+// Notes are limited to C4 and E4 because those are the two physical buttons
+// currently wired to the Pico (GP16, GP17). Every note in these charts is
+// playable on the instrument as it stands, so the cues never ask for a key
+// that does not exist. Add G4 once the third button is soldered.
 
 // Which button plays a given note is no longer fixed - it depends on the
 // selected key, octave and button layout. See buttonFor() in scales.js.
@@ -56,14 +57,14 @@ export const SONGS = [
     "Forge Call",
     100,
     [
-      ["C4", 1], ["E4", 1], ["D4", 1], [null, 1],
-      ["C4", 1], ["E4", 1], ["D4", 2],
-      ["E4", 1], ["D4", 1], ["C4", 1], [null, 1],
-      ["D4", 1], ["C4", 1], ["C4", 2],
+      ["C4", 1], ["E4", 1], ["C4", 1], [null, 1],
+      ["C4", 1], ["E4", 1], ["C4", 2],
+      ["E4", 1], ["C4", 1], ["E4", 1], [null, 1],
+      ["E4", 1], ["C4", 1], ["C4", 2],
 
-      ["E4", 1], ["E4", 1], ["D4", 1], ["C4", 1],
-      ["D4", 2], ["E4", 2],
-      ["C4", 1], ["D4", 1], ["E4", 1], ["D4", 1],
+      ["E4", 1], ["E4", 1], ["C4", 1], ["C4", 1],
+      ["E4", 2], ["C4", 2],
+      ["C4", 1], ["E4", 1], ["C4", 1], ["E4", 1],
       ["C4", 4],
     ]
   ),
@@ -73,14 +74,14 @@ export const SONGS = [
     "Ember Drift (Encore I)",
     84,
     [
-      ["E4", 2], ["D4", 1], ["C4", 1],
-      ["D4", 2], [null, 1], ["C4", 1],
-      ["E4", 1], ["E4", 1], ["D4", 2],
+      ["E4", 2], ["C4", 1], ["C4", 1],
+      ["E4", 2], [null, 1], ["C4", 1],
+      ["E4", 1], ["E4", 1], ["C4", 2],
       ["C4", 4],
 
-      ["D4", 1], ["E4", 1], ["D4", 1], ["C4", 1],
-      ["E4", 2], ["D4", 2],
-      ["C4", 1], ["C4", 1], ["D4", 1], ["E4", 1],
+      ["C4", 1], ["E4", 1], ["C4", 1], ["C4", 1],
+      ["E4", 2], ["C4", 2],
+      ["C4", 1], ["C4", 1], ["E4", 1], ["E4", 1],
       ["C4", 4],
     ]
   ),
@@ -91,13 +92,13 @@ export const SONGS = [
     120,
     [
       ["C4", 1], ["C4", 1], ["E4", 2],
-      ["D4", 1], ["D4", 1], ["C4", 2],
-      ["E4", 1], ["D4", 1], ["C4", 1], ["D4", 1],
+      ["E4", 1], ["E4", 1], ["C4", 2],
+      ["E4", 1], ["C4", 1], ["C4", 1], ["E4", 1],
       ["E4", 4],
 
-      ["D4", 1], ["C4", 1], ["D4", 1], ["E4", 1],
-      ["D4", 2], ["C4", 2],
-      ["C4", 1], ["E4", 1], ["D4", 1], ["C4", 1],
+      ["E4", 1], ["C4", 1], ["E4", 1], ["E4", 1],
+      ["E4", 2], ["C4", 2],
+      ["C4", 1], ["E4", 1], ["E4", 1], ["C4", 1],
       ["C4", 4],
     ]
   ),

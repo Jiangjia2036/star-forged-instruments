@@ -32,15 +32,28 @@ function App() {
     analyzer.current.toDestination();
   }
 
-  const [volume, setVolume] = useState(-10);
+  // Level for the browser preview synth only. The instrument's own volume is
+  // set by the potentiometer and never from here.
+  const [volume] = useState(-10);
   const [effectStrength, setEffectStrength] = useState(0);
   const [selectedEffect, setSelectedEffect] = useState("");
 
   const [picoConnected, setPicoConnected] = useState(false);
   const [activeNotes, setActiveNotes] = useState([]);
+  const [apiOnline, setApiOnline] = useState(null);
 
   // Notes the current song wants the performer to press right now
   const [targetNotes, setTargetNotes] = useState([]);
+
+  // Damper pedal. Either the GP20 switch or the on-screen toggle.
+  const [sustain, setSustain] = useState(false);
+
+  // Whether the board currently has echo running, however it was engaged.
+  // Never sent back to the Pico - see the note in handleLine.
+  const [picoEcho, setPicoEcho] = useState(false);
+
+  // Where the physical volume knob is sitting, 0-100
+  const [potVolume, setPotVolume] = useState(0);
 
   // Song progress, surfaced as a bar across the top of the page
   const [songProgress, setSongProgress] = useState(0);
@@ -56,13 +69,30 @@ function App() {
   // Scale / octave / button layout. Changing any of these retunes the Pico.
   const [root, setRoot] = useState("C");
   const [octave, setOctave] = useState(4);
-  const [spread, setSpread] = useState("steps");
+  // "chord" puts C and E on the two wired buttons, with G on the third
+  const [spread, setSpread] = useState("chord");
 
   const picoNotes = computeButtonNotes(root, octave, spread);
 
   const serialRef = useRef(null);
   // mirror of activeNotes for use inside serial callbacks
   const activeNotesRef = useRef([]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    fetch("/api/health", { signal: controller.signal })
+      .then((response) => {
+        if (!response.ok) throw new Error("API health check failed");
+        return response.json();
+      })
+      .then((health) => setApiOnline(health.status === "ok"))
+      .catch((error) => {
+        if (error.name !== "AbortError") setApiOnline(false);
+      });
+
+    return () => controller.abort();
+  }, []);
 
   useEffect(() => {
     const syncPageToHash = () => setPage(pageFromHash());
@@ -115,7 +145,7 @@ function App() {
 
 
   // Effects on the instrument itself. Warp changes the oscillator timbre and
-  // Chorus drives the tremolo, so all three buttons produce a distinct sound
+  // Chorus drives the tremolo, so each effect produces a distinct sound
   // from the Pico rather than only affecting browser audio.
   useEffect(() => {
     if (!picoConnected) return;
@@ -151,14 +181,8 @@ function App() {
   }, [picoConnected, selectedEffect, effectStrength]);
 
 
-  // Digital volume control from the website, riding on the physical knob
-  useEffect(() => {
-    if (!picoConnected) return;
-
-    // slider is -40..0 dB; map to 0..100 for the Pico
-    const level = Math.round(((volume + 40) / 40) * 100);
-    serialRef.current?.send("VOL_" + Math.max(0, Math.min(100, level)));
-  }, [picoConnected, volume]);
+  // Volume is set by the potentiometer alone. The site only mirrors it, so
+  // nothing is sent to the Pico here - see the VOL_ handler in handleLine.
 
   const updateActiveNotes = (notes) => {
     activeNotesRef.current = notes;
@@ -197,9 +221,28 @@ function App() {
       return;
     }
 
+    // Echo state reported by the board. This is display only on purpose.
+    // Feeding it into selectedEffect made the site answer the report with
+    // FX_ECHO_ON, which latched web_echo true on the Pico so the physical
+    // switch could never turn echo back off.
     const effectMatch = line.match(/^EFFECT_ECHO_(ON|OFF)$/);
     if (effectMatch) {
-      setSelectedEffect(effectMatch[1] === "ON" ? "Echo" : "");
+      setPicoEcho(effectMatch[1] === "ON");
+      return;
+    }
+
+    // Potentiometer position, 0-100. Read only: the knob is the sole volume
+    // control and this just moves the bar to match it.
+    const volMatch = line.match(/^VOL_(\d+)$/);
+    if (volMatch) {
+      setPotVolume(Math.min(100, Number(volMatch[1])));
+      return;
+    }
+
+    // Damper pedal state reported by the board
+    const sustainMatch = line.match(/^SUSTAIN_(ON|OFF)$/);
+    if (sustainMatch) {
+      setSustain(sustainMatch[1] === "ON");
       return;
     }
 
@@ -291,6 +334,17 @@ function App() {
     serialRef.current?.send("TRACK_PLAY_" + name);
   };
 
+  // The site heard a stable key in the backing track. Following it retunes
+  // the instrument automatically, so the buttons always play notes that fit
+  // what is coming out of the speakers.
+  const handleDetectedKey = (name) => {
+    setRoot((current) => {
+      if (current === name) return current;
+      console.log("Following detected key:", name);
+      return name;
+    });
+  };
+
   const stopPicoTrack = () => {
     serialRef.current?.send("TRACK_STOP");
     setPicoTrackPlaying(null);
@@ -345,6 +399,17 @@ function App() {
 
           <div className="pico-bar">
             <span
+              className={apiOnline ? "api-status on" : "api-status"}
+              title="FastAPI backend status"
+            >
+              {apiOnline === null
+                ? "Checking API"
+                : apiOnline
+                  ? "API online"
+                  : "Local mode"}
+            </span>
+
+            <span
               className={
                 picoConnected
                   ? "pico-status on"
@@ -378,6 +443,7 @@ function App() {
               picoTrackPlaying={picoTrackPlaying}
               onPlayPicoTrack={playPicoTrack}
               onStopPicoTrack={stopPicoTrack}
+              onDetectedKey={handleDetectedKey}
             />
           )}
 
@@ -402,12 +468,21 @@ function App() {
             />
 
             <Controls
-              volume={volume}
-              setVolume={setVolume}
               effectStrength={effectStrength}
               setEffectStrength={setEffectStrength}
               selectedEffect={selectedEffect}
               setSelectedEffect={setSelectedEffect}
+              picoEcho={picoEcho}
+              potVolume={potVolume}
+              picoConnected={picoConnected}
+              sustain={sustain}
+              onToggleSustain={() => {
+                const next = !sustain;
+                setSustain(next);
+                serialRef.current?.send(
+                  "FX_SUSTAIN_" + (next ? "ON" : "OFF")
+                );
+              }}
             />
           </div>
         )}

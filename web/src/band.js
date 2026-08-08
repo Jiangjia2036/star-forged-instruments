@@ -1,3 +1,5 @@
+import bandPhoto from "./assets/Star Forge Group - Logo.png";
+
 // Band and instrument copy for the site.
 //
 // Edit this file rather than the components. Swap the placeholder text for
@@ -7,8 +9,8 @@ export const BAND = {
   name: "Star Forged",
   tagline: "Synth-forged signals from somewhere past the asteroid belt.",
 
-  // Put a photo at web/public/images/band.jpg and it appears automatically.
-  photo: "/images/band.jpg",
+  // Images inside src/assets must be imported so Vite includes them.
+  photo: bandPhoto,
 
   // ===== EDIT THE BAND DESCRIPTION HERE =====
   // blurb:
@@ -23,23 +25,27 @@ export const MEMBERS = [
   // show a highlighted placeholder instead of creating a broken link.
   {
     name: "Member One",
-    role: "Instrument design / firmware",
-    photo: "/images/member1.jpg",
-    bio: "Replace this with a sentence or two about yourself.",
+    // role: "Setter",
+    // photo: "/images/member1.jpg",
+    // bio: "Replace this with a sentence or two about yourself.",
     linkedin: "",
   },
   {
     name: "Member Two",
-    role: "Web / visuals",
-    photo: "/images/member2.jpg",
-    bio: "Replace this with a sentence or two about yourself.",
+    // role: "Setter",
+    // photo: "/images/member2.jpg",
+    // bio: "Replace this with a sentence or two about yourself.",
     linkedin: "",
   },
   {
-    name: "Member Three",
-    role: "Chassis / fabrication",
-    photo: "/images/member3.jpg",
-    bio: "Replace this with a sentence or two about yourself.",
+    name: "Alejandro Padilla",
+    // role: "Setter",
+    // photo: "/images/member3.jpg",
+    // bio: "Replace this with a sentence or two about yourself.",
+    linkedin: "",
+  },
+  {
+    name: "Member",
     linkedin: "",
   },
 ];
@@ -96,6 +102,15 @@ export const EFFECTS = [
       "an LFO and costs the render loop nothing.",
   },
   {
+    name: "Sustain",
+    control: "Damper switch (GP20)",
+    detail:
+      "A piano's damper pedal. Holding it swaps the fast 110 ms release for " +
+      "a 2.6 second decay, so lifting a key leaves the note ringing and " +
+      "successive notes overlap into chords instead of cutting each other " +
+      "off. Engaging it on the website does the same thing.",
+  },
+  {
     name: "Vibrato",
     control: "Warp + Depth slider",
     detail:
@@ -140,6 +155,17 @@ export const DESIGN_NOTES = [
       "instrument an attack and a tail so it sounds played rather than " +
       "switched. synthio recalculates its LFOs every 256 samples; a chunk " +
       "here is 250, so the same trick works at no cost.",
+  },
+  {
+    title: "Why chords needed a limiter",
+    body:
+      "Voices sum, so two notes are twice the amplitude of one. The first " +
+      "build put a pair at 92 percent of full scale with no margin, and any " +
+      "attack transient crossed the line. Hard clipping chops the peaks " +
+      "flat, which turns a chord into something closer to a square wave and " +
+      "sounds harsh. A soft knee limiter compresses the peaks instead: a " +
+      "single note passes through untouched, and up to eight together stay " +
+      "inside full scale.",
   },
   {
     title: "Aesthetic",

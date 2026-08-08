@@ -7,7 +7,7 @@ function InstrumentPage() {
         <h2 className="page-title">The Instrument</h2>
         <p className="page-sub">
           A hand built synthesiser running on a Raspberry Pi Pico 2 W. Three
-          keys, any octave, any key signature, wired to this page over USB.
+          voices, any octave, any key signature, wired to this page over USB.
         </p>
       </div>
 
