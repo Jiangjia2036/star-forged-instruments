@@ -123,7 +123,7 @@ function Visualizer({ analyzer }) {
         ufo.position.set(
           0,
           0,
-          0
+          -30
         );
 
         sceneRef.current.add(ufo);
@@ -138,40 +138,206 @@ function Visualizer({ analyzer }) {
 
     const clock = new THREE.Clock();
 
+    // -------------------------
+    // UFO Entrance Animation
+    // -------------------------
+
+    const entranceDuration = 4.0;
+
+    let entranceStartTime = null;
+
+    let entranceComplete = false;
+
     function animate() {
       requestAnimationFrame(animate);
 
       const t =
         clock.getElapsedTime();
 
-      stars.rotation.y += 0.0005;
-      stars.rotation.x += 0.0002;
+      // -------------------------
+      // Audio Analysis
+      // -------------------------
 
-      if (ufo) {
+      let rms = 0;
+
+      if (analyzer?.current) {
         const values =
           analyzer.current.getValue();
 
         let sum = 0;
 
-        for (let i = 0; i < values.length; i++) {
-          sum += values[i] * values[i];
+        for (
+          let i = 0;
+          i < values.length;
+          i++
+        ) {
+          sum +=
+            values[i] *
+            values[i];
         }
 
-        const rms = Math.sqrt(
+        rms = Math.sqrt(
           sum / values.length
         );
+      }
 
-        const audioMovement =
-          rms * 4;
+      // -------------------------
+      // Stars
+      // -------------------------
 
-        ufo.position.y =
-          Math.sin(t * 0.8) * 0.15 +
-          audioMovement;
+      const starSpeed =
+        0.0005 + rms * 0.003;
 
-        ufo.rotation.z =
-          Math.sin(t * 0.6) * 0.06;
+      stars.rotation.y +=
+        starSpeed;
 
-        ufo.rotation.y += 0.002;
+      stars.rotation.x +=
+        0.0002 + rms * 0.001;
+
+      // -------------------------
+      // UFO
+      // -------------------------
+
+      if (ufo) {
+
+        // Start the entrance timer
+        if (entranceStartTime === null) {
+          entranceStartTime = t;
+        }
+
+        const entranceElapsed =
+          t - entranceStartTime;
+
+        // -------------------------
+        // UFO Entrance
+        // -------------------------
+
+        if (!entranceComplete) {
+
+          let progress =
+            entranceElapsed /
+            entranceDuration;
+
+          if (progress >= 1) {
+            progress = 1;
+            entranceComplete = true;
+          }
+
+          const easedProgress =
+            1 -
+            Math.pow(
+              1 - progress,
+              3
+            );
+
+          const startZ = -30;
+          const endZ = 0;
+
+          ufo.position.z =
+            startZ +
+            (endZ - startZ) *
+              easedProgress;
+
+          ufo.position.y =
+            Math.sin(
+              progress * Math.PI
+            ) * 0.4;
+
+          ufo.rotation.y +=
+            0.006;
+
+          ufo.rotation.z =
+            Math.sin(t * 0.8) *
+            0.08;
+        }
+
+        // -------------------------
+        // Normal UFO Mode
+        // -------------------------
+
+        else {
+
+          // -------------------------
+          // UFO approaching camera
+          // -------------------------
+
+          const targetZ =
+            rms * 3;
+
+          ufo.position.z +=
+            (targetZ - ufo.position.z) *
+            0.08;
+
+          // -------------------------
+          // UFO floating
+          // -------------------------
+
+          const audioMovement =
+            rms * 2;
+
+          ufo.position.y =
+            Math.sin(t * 0.8) * 0.15 +
+            audioMovement;
+
+          // -------------------------
+          // UFO rotation
+          // -------------------------
+
+          ufo.rotation.z =
+            Math.sin(t * 0.6) *
+            0.06;
+
+          ufo.rotation.y +=
+            0.002 + rms * 0.01;
+
+          // -------------------------
+          // UFO Color
+          // -------------------------
+
+          const color = new THREE.Color();
+
+          const hue =
+            (0.55 + rms * 0.8) % 1;
+
+          color.setHSL(
+            hue,
+            0.85,
+            0.55
+          );
+
+          ufo.traverse((child) => {
+            if (
+              child.isMesh &&
+              child.material
+            ) {
+              if (
+                Array.isArray(
+                  child.material
+                )
+              ) {
+                child.material.forEach(
+                  (material) => {
+                    if (material.color) {
+                      material.color.lerp(
+                        color,
+                        0.08
+                      );
+                    }
+                  }
+                );
+              } else {
+                if (
+                  child.material.color
+                ) {
+                  child.material.color.lerp(
+                    color,
+                    0.08
+                  );
+                }
+              }
+            }
+          });
+        }
       }
 
       rendererRef.current.render(
@@ -181,6 +347,10 @@ function Visualizer({ analyzer }) {
     }
 
     animate();
+
+    // -------------------------
+    // Resize
+    // -------------------------
 
     function onWindowResize() {
       const width =
@@ -204,6 +374,10 @@ function Visualizer({ analyzer }) {
       "resize",
       onWindowResize
     );
+
+    // -------------------------
+    // Cleanup
+    // -------------------------
 
     return () => {
       window.removeEventListener(
@@ -230,9 +404,9 @@ function Visualizer({ analyzer }) {
 
   return (
     <div
-      className="visualizer"
       ref={mountRef}
-    ></div>
+      className="visualizer"
+    />
   );
 }
 
