@@ -245,15 +245,42 @@ audio_out = I2S(
 # Memory Allocation
 # ============================================================
 
-print("Building sine table...")
+print("Building wave tables...")
 
-sine_table = array.array('h', [0] * TABLE_LEN)
+# Three timbres. Switching between them is a distinct sound change that is
+# neither pitch nor volume, which is what the brief asks for.
+# Square and saw carry far more harmonic energy than a sine, so they are
+# scaled back to keep the perceived loudness even across the three.
+WAVE_NAMES = ["SINE", "SQUARE", "SAW"]
 
-for n in range(TABLE_LEN):
-    sine_table[n] = int(
-        AMPLITUDE
-        * math.sin(2 * math.pi * n / TABLE_LEN)
-    )
+WAVES = []
+
+for _kind in WAVE_NAMES:
+
+    _table = array.array('h', [0] * TABLE_LEN)
+
+    for n in range(TABLE_LEN):
+
+        _phase = n / TABLE_LEN
+
+        if _kind == "SINE":
+            _value = math.sin(2 * math.pi * _phase)
+            _trim = 1.0
+
+        elif _kind == "SQUARE":
+            _value = 1.0 if _phase < 0.5 else -1.0
+            _trim = 0.6
+
+        else:
+            _value = 2.0 * _phase - 1.0
+            _trim = 0.7
+
+        _table[n] = int(AMPLITUDE * _value * _trim)
+
+    WAVES.append(_table)
+
+# The LFO reads the sine table regardless of the selected voice timbre
+sine_table = WAVES[0]
 
 
 # 6600 / 22000 = 0.3 second echo delay
@@ -294,13 +321,13 @@ def render_chunk(
     inc_3,
     delay_ptr,
     y_prev,
-    track_on
+    track_on,
+    tbl
 ):
 
     # Local aliases avoid a global lookup per sample
     buf = out_buf
     db = delay_buffer
-    tbl = sine_table
     wavb = wav_buf
 
     mask = TABLE_MASK
@@ -454,6 +481,20 @@ def run_dsp_engine():
 
     rx = ""
 
+    # Effects controlled from the website
+    wave_index = 0
+
+    # Tremolo is computed once per chunk rather than per sample. At 88 chunks
+    # a second that is far above the few Hz an LFO needs, and it costs the
+    # inner loop nothing.
+    trem_depth = 0
+    trem_rate = 5.0
+    trem_tick = 0
+
+    # Digital volume from the website, 0-256. Multiplied with the pot so both
+    # the physical knob and the site have control.
+    web_volume = 256
+
     # Backing track streaming state
     track_file = None
     track_on = False
@@ -498,6 +539,36 @@ def run_dsp_engine():
                     remote[0] = False
                     remote[1] = False
                     remote[2] = False
+
+                elif rx.startswith("FX_WAVE_"):
+
+                    name = rx[8:]
+
+                    if name in WAVE_NAMES:
+                        wave_index = WAVE_NAMES.index(name)
+                        print("FX_WAVE_%s_OK" % name)
+
+                elif rx.startswith("FX_TREM_"):
+
+                    try:
+                        depth = int(rx[8:])
+                    except ValueError:
+                        depth = -1
+
+                    if 0 <= depth <= 100:
+                        trem_depth = depth
+                        print("FX_TREM_%d_OK" % depth)
+
+                elif rx.startswith("VOL_"):
+
+                    try:
+                        level = int(rx[4:])
+                    except ValueError:
+                        level = -1
+
+                    if 0 <= level <= 100:
+                        web_volume = (level * 256) // 100
+                        print("VOL_%d_OK" % level)
 
                 elif rx == "TRACK_LIST":
                     print("TRACKS_" + "|".join(list_tracks()))
@@ -605,6 +676,25 @@ def run_dsp_engine():
         if vol_multiplier < VOL_MIN:
             vol_multiplier = VOL_MIN
 
+        # Website volume rides on top of the physical knob
+        vol_multiplier = (vol_multiplier * web_volume) >> 8
+
+        # Tremolo: one LFO value per chunk, folded into the volume so the
+        # render loop stays untouched.
+        if trem_depth:
+
+            trem_tick += 1
+
+            lfo = math.sin(
+                2 * math.pi * trem_rate
+                * trem_tick * CHUNK_SAMPLES / SAMPLE_RATE
+            )
+
+            # depth 100 swings from full down to silence
+            shaped = 1.0 - (trem_depth / 100.0) * (1.0 - lfo) / 2.0
+
+            vol_multiplier = int(vol_multiplier * shaped)
+
 
         # ====================================================
         # USB Serial Messages
@@ -706,7 +796,8 @@ def run_dsp_engine():
             inc_3,
             delay_ptr,
             y_prev,
-            track_on
+            track_on,
+            WAVES[wave_index]
         )
 
         audio_out.write(out_buf)
