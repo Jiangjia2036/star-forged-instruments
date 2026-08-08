@@ -1,5 +1,10 @@
 import "./App.css";
-import { useRef, useState, useEffect } from "react";
+import {
+  useRef,
+  useState,
+  useEffect,
+} from "react";
+
 import * as Tone from "tone";
 
 import Keyboard from "./components/Keyboard";
@@ -8,9 +13,11 @@ import Visualizer from "./components/Visualizer";
 import PicoController from "./components/PicoController";
 
 function App() {
-
   const delay = useRef(
-    new Tone.FeedbackDelay("8n", 0.4)
+    new Tone.FeedbackDelay(
+      "8n",
+      0.4
+    )
   );
 
   const synth = useRef(
@@ -18,13 +25,20 @@ function App() {
   );
 
   const analyzer = useRef(
-    new Tone.Analyser("waveform", 256)
+    new Tone.Analyser(
+      "waveform",
+      256
+    )
   );
 
   useEffect(() => {
-    synth.current.connect(delay.current);
+    synth.current.connect(
+      delay.current
+    );
 
-    delay.current.connect(analyzer.current);
+    delay.current.connect(
+      analyzer.current
+    );
 
     delay.current.toDestination();
 
@@ -35,46 +49,75 @@ function App() {
     };
   }, []);
 
-  const keyboardRef = useRef(null);
+  const keyboardRef =
+    useRef(null);
 
+  const [volume, setVolume] =
+    useState(-10);
 
-  const [volume, setVolume] = useState(-10);
-  const [effectStrength, setEffectStrength] = useState(0);
-  const [selectedEffect, setSelectedEffect] = useState("");
+  const [effectStrength,
+    setEffectStrength] =
+    useState(0);
+
+  const [selectedEffect,
+    setSelectedEffect] =
+    useState("");
 
   useEffect(() => {
-    synth.current.volume.value = volume;
+    synth.current.volume.value =
+      volume;
   }, [volume]);
 
   useEffect(() => {
-    if (selectedEffect === "Echo") {
+    if (
+      selectedEffect ===
+      "Echo"
+    ) {
       delay.current.wet.value =
         effectStrength / 100;
     } else {
       delay.current.wet.value = 0;
     }
-  }, [effectStrength, selectedEffect]);
+  }, [
+    effectStrength,
+    selectedEffect,
+  ]);
 
-  const handleKeyboardReady = (keyboardControls) => {
-    keyboardRef.current = keyboardControls;
-  };
+  const handleKeyboardReady =
+    (keyboardControls) => {
+      keyboardRef.current =
+        keyboardControls;
+    };
 
-  const handlePicoDown = () => {
-    console.log("Pico → First Key DOWN");
+  const handlePicoDown =
+    (index) => {
+      console.log(
+        "Pico → Key DOWN:",
+        index
+      );
 
-    keyboardRef.current?.playFirstKey();
-  };
+      keyboardRef.current?.playKey(
+        index
+      );
+    };
 
-  const handlePicoUp = () => {
-    console.log("Pico → First Key UP");
+  const handlePicoUp =
+    (index) => {
+      console.log(
+        "Pico → Key UP:",
+        index
+      );
 
-    keyboardRef.current?.stopFirstKey();
-  };
+      keyboardRef.current?.stopKey(
+        index
+      );
+    };
 
   return (
-    <div className="app">
-
-      <Visualizer analyzer={analyzer} />
+    <>
+      <Visualizer
+        analyzer={analyzer}
+      />
 
       <div className="ui">
 
@@ -83,31 +126,44 @@ function App() {
         </h1>
 
         <PicoController
-          onButtonDown={handlePicoDown}
-          onButtonUp={handlePicoUp}
+          onButtonDown={
+            handlePicoDown
+          }
+          onButtonUp={
+            handlePicoUp
+          }
         />
 
         <div className="bottom-ui">
 
           <Keyboard
             synth={synth}
-            onReady={handleKeyboardReady}
+            onReady={
+              handleKeyboardReady
+            }
           />
 
           <Controls
             volume={volume}
             setVolume={setVolume}
-            effectStrength={effectStrength}
-            setEffectStrength={setEffectStrength}
-            selectedEffect={selectedEffect}
-            setSelectedEffect={setSelectedEffect}
+            effectStrength={
+              effectStrength
+            }
+            setEffectStrength={
+              setEffectStrength
+            }
+            selectedEffect={
+              selectedEffect
+            }
+            setSelectedEffect={
+              setSelectedEffect
+            }
           />
 
         </div>
 
       </div>
-
-    </div>
+    </>
   );
 }
 

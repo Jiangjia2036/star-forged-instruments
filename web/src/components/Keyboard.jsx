@@ -2,15 +2,45 @@ import { useState, useEffect } from "react";
 
 function Keyboard({ synth, onReady }) {
   const scales = {
-    C: ["C4", "D4", "E4", "F4", "G4", "A4", "B4", "C5"],
-    D: ["D4", "E4", "F#4", "G4", "A4", "B4", "C#5", "D5"],
-    G: ["G4", "A4", "B4", "C5", "D5", "E5", "F#5", "G5"],
+    C: [
+      "C4",
+      "D4",
+      "E4",
+      "F4",
+      "G4",
+      "A4",
+      "B4",
+      "C5",
+    ],
+
+    D: [
+      "D4",
+      "E4",
+      "F#4",
+      "G4",
+      "A4",
+      "B4",
+      "C#5",
+      "D5",
+    ],
+
+    G: [
+      "G4",
+      "A4",
+      "B4",
+      "C5",
+      "D5",
+      "E5",
+      "F#5",
+      "G5",
+    ],
   };
 
-  const [scale, setScale] = useState("C");
+  const [scale, setScale] =
+    useState("C");
 
-  const [pressedKey, setPressedKey] = useState(null);
-
+  const [pressedKey, setPressedKey] =
+    useState(null);
 
   const startNote = async (note) => {
     await synth.current.context.resume();
@@ -19,7 +49,6 @@ function Keyboard({ synth, onReady }) {
 
     setPressedKey(note);
   };
-
 
   const stopNote = () => {
     synth.current.triggerRelease();
@@ -32,32 +61,41 @@ function Keyboard({ synth, onReady }) {
       return;
     }
 
-    const firstNote = scales[scale][0];
-
     onReady({
-      playFirstKey: async () => {
-        console.log(
-          "Keyboard: Pico pressed →",
-          firstNote
-        );
+      playKey: async (index) => {
+        const note =
+          scales[scale][index];
 
-        await startNote(firstNote);
+        if (note) {
+          console.log(
+            "Keyboard: Pico →",
+            note
+          );
+
+          await startNote(note);
+        }
       },
 
-      stopFirstKey: () => {
-        console.log(
-          "Keyboard: Pico released"
-        );
+      stopKey: (index) => {
+        const note =
+          scales[scale][index];
 
-        stopNote();
+        if (note) {
+          console.log(
+            "Keyboard: Pico released →",
+            note
+          );
+
+          stopNote();
+        }
       },
     });
   }, [scale, onReady]);
 
   return (
     <section className="keyboard-section">
-      <h2>Keyboard</h2>
 
+      <h2>Keyboard</h2>
 
       <div className="scale-selector">
         <span>Scale</span>
@@ -70,7 +108,9 @@ function Keyboard({ synth, onReady }) {
                 ? "scale-btn active"
                 : "scale-btn"
             }
-            onClick={() => setScale("C")}
+            onClick={() =>
+              setScale("C")
+            }
           >
             C
           </button>
@@ -81,7 +121,9 @@ function Keyboard({ synth, onReady }) {
                 ? "scale-btn active"
                 : "scale-btn"
             }
-            onClick={() => setScale("D")}
+            onClick={() =>
+              setScale("D")
+            }
           >
             D
           </button>
@@ -92,7 +134,9 @@ function Keyboard({ synth, onReady }) {
                 ? "scale-btn active"
                 : "scale-btn"
             }
-            onClick={() => setScale("G")}
+            onClick={() =>
+              setScale("G")
+            }
           >
             G
           </button>
@@ -100,42 +144,36 @@ function Keyboard({ synth, onReady }) {
         </div>
       </div>
 
-    
       <div className="keyboard-wrapper">
 
         <div className="keyboard">
 
-          {scales[scale].map((note) => (
-            <button
-              key={note}
-
-              className={
-                pressedKey === note
-                  ? "key pressed"
-                  : "key"
-              }
-
-              onMouseDown={() =>
-                startNote(note)
-              }
-
-              onMouseUp={
-                stopNote
-              }
-
-              onMouseLeave={
-                stopNote
-              }
-            >
-              {note
-                .replace("4", "")
-                .replace("5", "")}
-            </button>
-          ))}
+          {scales[scale].map(
+            (note) => (
+              <button
+                key={note}
+                className={
+                  pressedKey === note
+                    ? "key pressed"
+                    : "key"
+                }
+                onMouseDown={() =>
+                  startNote(note)
+                }
+                onMouseUp={stopNote}
+                onMouseLeave={stopNote}
+              >
+                {note
+                  .replace("4", "")
+                  .replace("5", "")}
+              </button>
+            )
+          )}
 
         </div>
 
       </div>
+
     </section>
   );
 }

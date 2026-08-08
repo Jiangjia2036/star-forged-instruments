@@ -14,9 +14,13 @@ function PicoController({ onButtonDown, onButtonUp }) {
 
       console.log("Requesting Pico...");
 
-      const selectedPort = await navigator.serial.requestPort();
+      const selectedPort =
+        await navigator.serial.requestPort();
 
-      console.log("Pico selected:", selectedPort);
+      console.log(
+        "Pico selected:",
+        selectedPort
+      );
 
       await selectedPort.open({
         baudRate: 115200,
@@ -28,88 +32,165 @@ function PicoController({ onButtonDown, onButtonUp }) {
       setStatus("Connected");
 
       readFromPico(selectedPort);
+
     } catch (error) {
-      console.error("Connection error:", error);
+      console.error(
+        "Connection error:",
+        error
+      );
+
       setStatus("Connection failed");
     }
   }
 
   async function readFromPico(selectedPort) {
     const decoder = new TextDecoder();
+
     let buffer = "";
 
-    let firstMessage = true;
-
-    console.log("Starting to read from Pico...");
+    console.log(
+      "Starting to read from Pico..."
+    );
 
     while (selectedPort.readable) {
-      const reader = selectedPort.readable.getReader();
+      const reader =
+        selectedPort.readable.getReader();
 
       try {
         while (true) {
-          const { value, done } = await reader.read();
+          const { value, done } =
+            await reader.read();
 
           if (done) {
-            console.log("Serial reader finished");
+            console.log(
+              "Serial reader finished"
+            );
             break;
           }
 
-          if (value) {
-            const text = decoder.decode(value);
+          if (!value) {
+            continue;
+          }
 
-            console.log("RAW FROM PICO:", text);
+          const text =
+            decoder.decode(value);
 
-            buffer += text;
+          console.log(
+            "RAW FROM PICO:",
+            text
+          );
 
-            const lines = buffer.split("\n");
+          buffer += text;
 
-            buffer = lines.pop();
+          const lines =
+            buffer.split("\n");
 
-            for (const line of lines) {
-              const message = line.trim();
+          buffer = lines.pop();
 
-              if (!message) {
-                continue;
-              }
+          for (const line of lines) {
+            const message = line.trim();
 
-              console.log("PICO MESSAGE:", message);
+            if (!message) {
+              continue;
+            }
 
-              if (firstMessage) {
-                console.log(
-                  "Ignoring initial Pico button state:",
-                  message
-                );
+            console.log(
+              "PICO MESSAGE:",
+              message
+            );
 
-                if (message === "BUTTON_DOWN") {
-                  setButtonState("DOWN");
-                } else if (message === "BUTTON_UP") {
-                  setButtonState("UP");
-                }
+            if (
+              message ===
+              "BUTTON_1_DOWN"
+            ) {
+              console.log(
+                "BUTTON 1 DOWN!"
+              );
 
-                firstMessage = false;
-                continue;
-              }
+              setButtonState(
+                "BUTTON 1 DOWN"
+              );
 
-              if (message === "BUTTON_DOWN") {
-                console.log("BUTTON DOWN!");
+              onButtonDown?.(0);
+            }
 
-                setButtonState("DOWN");
+            else if (
+              message ===
+              "BUTTON_1_UP"
+            ) {
+              console.log(
+                "BUTTON 1 UP!"
+              );
 
-                onButtonDown?.();
-              }
+              setButtonState("UP");
 
-              if (message === "BUTTON_UP") {
-                console.log("BUTTON UP!");
+              onButtonUp?.(0);
+            }
 
-                setButtonState("UP");
+            else if (
+              message ===
+              "BUTTON_2_DOWN"
+            ) {
+              console.log(
+                "BUTTON 2 DOWN!"
+              );
 
-                onButtonUp?.();
-              }
+              setButtonState(
+                "BUTTON 2 DOWN"
+              );
+
+              onButtonDown?.(1);
+            }
+
+            else if (
+              message ===
+              "BUTTON_2_UP"
+            ) {
+              console.log(
+                "BUTTON 2 UP!"
+              );
+
+              setButtonState("UP");
+
+              onButtonUp?.(1);
+            }
+
+            else if (
+              message ===
+              "BUTTON_3_DOWN"
+            ) {
+              console.log(
+                "BUTTON 3 DOWN!"
+              );
+
+              setButtonState(
+                "BUTTON 3 DOWN"
+              );
+
+              onButtonDown?.(2);
+            }
+
+            else if (
+              message ===
+              "BUTTON_3_UP"
+            ) {
+              console.log(
+                "BUTTON 3 UP!"
+              );
+
+              setButtonState("UP");
+
+              onButtonUp?.(2);
             }
           }
         }
+
       } catch (error) {
-        console.error("Reading error:", error);
+        console.error(
+          "Reading error:",
+          error
+        );
+
       } finally {
         reader.releaseLock();
       }
