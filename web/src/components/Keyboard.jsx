@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-function Keyboard({ synth }) {
+function Keyboard({ synth, activeNotes }) {
   const scales = {
     C: ["C4", "D4", "E4", "F4", "G4", "A4", "B4", "C5"],
     D: ["D4", "E4", "F#4", "G4", "A4", "B4", "C#5", "D5"],
@@ -66,7 +66,11 @@ function Keyboard({ synth }) {
           {scales[scale].map((note) => (
             <button
               key={note}
-              className="key"
+              className={
+                activeNotes.includes(note)
+                  ? "key pico-active"
+                  : "key"
+              }
               onMouseDown={() => startNote(note)}
               onMouseUp={stopNote}
               onMouseLeave={stopNote}

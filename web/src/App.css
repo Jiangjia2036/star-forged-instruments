@@ -129,6 +129,72 @@ h2 {
   background: #dfe9ff;
 }
 
+.key.pico-active {
+  background: #2b7cff;
+
+  color: white;
+
+  transform: translateY(2px);
+
+  box-shadow:
+    0 0 18px rgba(43, 124, 255, 0.85);
+}
+
+.pico-bar {
+  position: relative;
+  z-index: 10;
+
+  display: flex;
+  justify-content: center;
+  align-items: center;
+
+  gap: 16px;
+
+  margin-top: 14px;
+}
+
+.connect-btn {
+  padding: 9px 20px;
+
+  font-size: 15px;
+
+  color: white;
+
+  background: rgba(255, 255, 255, 0.07);
+
+  border: 1px solid rgba(255, 255, 255, 0.15);
+
+  border-radius: 9px;
+
+  backdrop-filter: blur(10px);
+
+  cursor: pointer;
+
+  transition: 0.2s;
+}
+
+.connect-btn:hover {
+  transform: translateY(-2px);
+
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.pico-status {
+  font-size: 14px;
+
+  font-weight: bold;
+}
+
+.pico-status.on {
+  color: #4dff88;
+
+  text-shadow: 0 0 10px rgba(77, 255, 136, 0.6);
+}
+
+.pico-status.off {
+  color: #ff5c5c;
+}
+
 .scale-selector {
   text-align: center;
   margin-bottom: 10px;
