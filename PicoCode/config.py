@@ -18,8 +18,8 @@ SAMPLE_RATE = 44100
 # margin for rounding. Do not change chord gain back to budget / sqrt(N): it
 # makes two-button combinations louder by driving that compressor, and that
 # loudness is the harsh/gritty sound we are trying to remove.
-SINGLE_NOTE_LEVEL = 0.82
-CHORD_TOTAL_LEVEL = 0.82
+SINGLE_NOTE_LEVEL = 0.87 # was 0.82 before
+CHORD_TOTAL_LEVEL = 0.79 # 0.82 before
 
 # Shared buffer size for every effect stage. Larger is safer against
 # dropouts, smaller is lower latency.
@@ -61,7 +61,7 @@ POS_REPORT_S = 0.25
 # notes sound smooth together.
 #
 # Lower this if chords still sound harsh; raise it if the tone gets muffled.
-TONE_HZ = 2000 # change to 3000 or lower if it sounds harsh
+TONE_HZ = 1750 # change to 3000 or lower if it sounds harsh, was 2000 before
 TONE_Q = 0.707
 
 # Gain changes ramp inside synthio instead of jumping and creating a click.
