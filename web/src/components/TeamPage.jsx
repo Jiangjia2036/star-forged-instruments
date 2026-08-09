@@ -6,7 +6,7 @@ function TeamPage({ onBack }) {
       name: "Ethan Summers",
       role: "Hardware / Pico",
       description:
-        "Worked on the physical instrument, electronics, and Pico integration.",
+        "Hello! I'm Ethan Summers and I am majoring in Mechanical Engineering. I'm a transfer from West Valley Community College from San Jose. ",
       image:
         "/photos/Ethan.jpg",
     },
