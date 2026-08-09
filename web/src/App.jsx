@@ -39,9 +39,6 @@ function App() {
   const [activeNotes, setActiveNotes] = useState([]);
   const [apiOnline, setApiOnline] = useState(null);
 
-  // Notes the current song wants the performer to press right now
-  const [targetNotes, setTargetNotes] = useState([]);
-
   // Damper pedal. Either the GP20 switch or the on-screen toggle.
   const [sustain, setSustain] = useState(false);
 
@@ -253,17 +250,6 @@ function App() {
   };
 
 
-  // The site heard a stable key in the backing track. Following it retunes
-  // the instrument automatically, so the buttons always play notes that fit
-  // what is coming out of the speakers.
-  const handleDetectedKey = (name) => {
-    setRoot((current) => {
-      if (current === name) return current;
-      console.log("Following detected key:", name);
-      return name;
-    });
-  };
-
   // Retune the instrument whenever the key, octave or button layout changes,
   // so the physical buttons always play the scale shown on screen.
   const tuneCommand = "TUNE_" + picoNotes.join("_");
@@ -373,10 +359,7 @@ function App() {
         <main className="page-area">
           {page === "perform" && (
             <SongPlayer
-              onTargetsChange={setTargetNotes}
               onProgress={setSongProgress}
-              buttonNotes={picoNotes}
-              onDetectedKey={handleDetectedKey}
             />
           )}
 
@@ -389,7 +372,6 @@ function App() {
             <Keyboard
               synth={synth}
               activeNotes={activeNotes}
-              targetNotes={targetNotes}
               root={root}
               setRoot={setRoot}
               octave={octave}
