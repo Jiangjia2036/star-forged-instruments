@@ -13,6 +13,11 @@ function Visualizer({
   const notesRef =
     useRef([]);
 
+  // Notes pressed on the browser keyboard.
+  // Pico notes continue to arrive through activeNotes.
+  const browserNotesRef =
+    useRef([]);
+
   notesRef.current =
     activeNotes;
 
@@ -88,6 +93,50 @@ function Visualizer({
   }, [currentPage]);
 
   useEffect(() => {
+    // Browser keyboard events drive the UFO beam without replacing
+    // the existing Pico -> activeNotes path.
+    const handleBrowserNoteOn =
+      (event) => {
+        const note =
+          event.detail?.note;
+
+        if (!note) return;
+
+        if (
+          !browserNotesRef.current.includes(
+            note
+          )
+        ) {
+          browserNotesRef.current = [
+            ...browserNotesRef.current,
+            note,
+          ];
+        }
+      };
+
+    const handleBrowserNoteOff =
+      (event) => {
+        const note =
+          event.detail?.note;
+
+        if (!note) return;
+
+        browserNotesRef.current =
+          browserNotesRef.current.filter(
+            (n) => n !== note
+          );
+      };
+
+    window.addEventListener(
+      "star-forged-note-on",
+      handleBrowserNoteOn
+    );
+
+    window.addEventListener(
+      "star-forged-note-off",
+      handleBrowserNoteOff
+    );
+
     const width =
       window.innerWidth;
 
@@ -308,6 +357,12 @@ function Visualizer({
 
     let ufo = null;
 
+    // UFO abduction / tractor beam
+    let ufoBeam = null;
+    let ufoBeamGlow = null;
+    let ufoBeamMaterial = null;
+    let ufoBeamGlowMaterial = null;
+
     loader.load(
       "/models/ufo.glb",
 
@@ -328,6 +383,82 @@ function Visualizer({
         );
 
         scene.add(ufo);
+
+        // ------------------------------------------------------------
+        // UFO ABDUCTION BEAM
+        // ------------------------------------------------------------
+        // The UFO model is scaled to 0.02, so the beam uses larger
+        // local dimensions and stays attached to the UFO as it moves.
+        const beamGeometry =
+          new THREE.ConeGeometry(
+            82,
+            190,
+            64,
+            1,
+            true
+          );
+
+        ufoBeamMaterial =
+          new THREE.MeshBasicMaterial({
+            color: 0x63d8ff,
+            transparent: true,
+            opacity: 0,
+            depthWrite: false,
+            side: THREE.DoubleSide,
+            blending:
+              THREE.AdditiveBlending,
+          });
+
+        ufoBeam =
+          new THREE.Mesh(
+            beamGeometry,
+            ufoBeamMaterial
+          );
+
+        // ConeGeometry expands downward.
+        // The tip starts just under the UFO.
+        ufoBeam.position.set(
+          0,
+          -115,
+          0
+        );
+
+        ufo.add(ufoBeam);
+
+        // Wider, softer cone for the surrounding glow.
+        const glowGeometry =
+          new THREE.ConeGeometry(
+            96,
+            194,
+            48,
+            1,
+            true
+          );
+
+        ufoBeamGlowMaterial =
+          new THREE.MeshBasicMaterial({
+            color: 0x63d8ff,
+            transparent: true,
+            opacity: 0,
+            depthWrite: false,
+            side: THREE.DoubleSide,
+            blending:
+              THREE.AdditiveBlending,
+          });
+
+        ufoBeamGlow =
+          new THREE.Mesh(
+            glowGeometry,
+            ufoBeamGlowMaterial
+          );
+
+        ufoBeamGlow.position.set(
+          0,
+          -116,
+          0
+        );
+
+        ufo.add(ufoBeamGlow);
 
         console.log(
           "UFO loaded"
@@ -359,6 +490,142 @@ function Visualizer({
     let animationFrameId;
     let lastFrameTime = 0;
     let smoothedHeld = 0;
+
+    // Map the currently held notes to the same general color family
+    // used by the keyboard.
+    function beamColorForNotes(notes) {
+      if (!notes || notes.length === 0) {
+        return new THREE.Color(0x63d8ff);
+      }
+
+      const noteHues = {
+        C: 0.57,
+        D: 0.76,
+        E: 0.92,
+        F: 0.04,
+        G: 0.12,
+        A: 0.27,
+        B: 0.47,
+      };
+
+      let hue = 0;
+
+      notes.forEach((note) => {
+        hue +=
+          noteHues[note[0]] ??
+          0.57;
+      });
+
+      hue /= notes.length;
+
+      return new THREE.Color().setHSL(
+        hue,
+        0.85,
+        0.62
+      );
+    }
+
+    function updateUfoBeam(
+      rms,
+      held,
+      time
+    ) {
+      if (
+        !ufoBeam ||
+        !ufoBeamMaterial ||
+        !ufoBeamGlow ||
+        !ufoBeamGlowMaterial
+      ) {
+        return;
+      }
+
+      // Held notes are the primary trigger.
+      // RMS only adds a subtle pulse, so the beam still works when
+      // the Pico's physical audio is not routed into the browser.
+      const noteActivity =
+        Math.min(
+          1,
+          held * 0.55
+        );
+
+      const audioActivity =
+        Math.min(
+          1,
+          rms * 3
+        );
+
+      const activity =
+        Math.min(
+          1,
+          noteActivity * 1.15 +
+            audioActivity * 0.25
+        );
+
+      const pulse =
+        0.92 +
+        Math.sin(time * 0.006) *
+          0.08;
+
+      const targetOpacity =
+        activity > 0.01
+          ? Math.min(
+              0.62,
+              (0.18 +
+                activity * 0.38) *
+                pulse
+            )
+          : 0;
+
+      // Smooth fade in/out.
+      ufoBeamMaterial.opacity +=
+        (targetOpacity -
+          ufoBeamMaterial.opacity) *
+        0.18;
+
+      ufoBeamGlowMaterial.opacity +=
+        (targetOpacity * 0.28 -
+          ufoBeamGlowMaterial.opacity) *
+        0.12;
+
+      const visualNotes = [
+        ...new Set([
+          ...notesRef.current,
+          ...browserNotesRef.current,
+        ]),
+      ];
+
+      const color =
+        beamColorForNotes(
+          visualNotes
+        );
+
+      ufoBeamMaterial.color.lerp(
+        color,
+        0.12
+      );
+
+      ufoBeamGlowMaterial.color.lerp(
+        color,
+        0.10
+      );
+
+      // Slight breathing motion while active.
+      const beamScale =
+        0.94 +
+        activity * 0.12 +
+        Math.sin(time * 0.004) *
+          0.018;
+
+      ufoBeam.scale.x =
+        beamScale;
+      ufoBeam.scale.z =
+        beamScale;
+
+      ufoBeamGlow.scale.x =
+        beamScale * 1.05;
+      ufoBeamGlow.scale.z =
+        beamScale * 1.05;
+    }
 
     function animate() {
       animationFrameId =
@@ -404,17 +671,38 @@ function Visualizer({
           );
       }
 
+
       // Held notes on the instrument, so the scene reacts even though the
       // Pico's audio never reaches the browser
-      const heldTarget = notesRef.current.length;
-      const heldBlend = 1 - Math.exp(-frameSeconds * 20);
+      const visualHeldNotes = [
+        ...new Set([
+          ...notesRef.current,
+          ...browserNotesRef.current,
+        ]),
+      ];
+
+      const heldTarget =
+        visualHeldNotes.length;
+
+      const heldBlend =
+        1 - Math.exp(
+          -frameSeconds * 20
+        );
       smoothedHeld += (heldTarget - smoothedHeld) * heldBlend;
       const held = smoothedHeld;
+
+      // UFO tractor / abduction beam.
+      updateUfoBeam(
+        rms,
+        held,
+        performance.now()
+      );
 
       const starSpeed =
         0.0005 +
         rms * 0.003 +
         held * 0.0016;
+
 
       starGroup.rotation.y +=
         starSpeed * frameScale;
@@ -424,6 +712,7 @@ function Visualizer({
           rms * 0.001 +
           held * 0.0006) *
         frameScale;
+
 
       if (
         photoStarRef.current
@@ -579,8 +868,10 @@ function Visualizer({
             ufo.rotation.y +=
               0.02 * frameScale;
 
+
             starGroup.rotation.y +=
               0.002 * frameScale;
+
 
             if (
               progress >= 1
@@ -640,8 +931,10 @@ function Visualizer({
             ufo.rotation.y +=
               0.02 * frameScale;
 
+
             starGroup.rotation.y +=
               0.002 * frameScale;
+
 
             if (
               progress >= 1
@@ -683,7 +976,9 @@ function Visualizer({
         else {
           const audioMovement =
             rms * 2 +
+
             Math.min(1, held) * 0.45;
+
 
           ufo.position.y =
             Math.sin(
@@ -706,60 +1001,10 @@ function Visualizer({
               held * 0.02) *
             frameScale;
 
-          const color =
-            new THREE.Color();
+          // Keep the original UFO material and texture.
+          // Music now drives the abduction beam instead of repainting
+          // the UFO itself.
 
-          const hue =
-            (0.55 +
-              rms * 0.8 +
-              held * 0.08) %
-            1;
-
-          color.setHSL(
-            hue,
-            0.85,
-            0.55
-          );
-
-          const colorBlend =
-            1 - Math.pow(0.92, frameScale);
-
-          ufo.traverse(
-            (child) => {
-              if (
-                child.isMesh &&
-                child.material
-              ) {
-                if (
-                  Array.isArray(
-                    child.material
-                  )
-                ) {
-                  child.material.forEach(
-                    (material) => {
-                      if (
-                        material.color
-                      ) {
-                        material.color.lerp(
-                          color,
-                          colorBlend
-                        );
-                      }
-                    }
-                  );
-                } else {
-                  if (
-                    child.material.color
-                  ) {
-                    child.material.color.lerp(
-                      color,
-                      colorBlend
-                    );
-                  }
-                }
-              }
-            }
-          );
         }
       }
 
@@ -800,12 +1045,41 @@ function Visualizer({
         onWindowResize
       );
 
+      window.removeEventListener(
+        "star-forged-note-on",
+        handleBrowserNoteOn
+      );
+
+      window.removeEventListener(
+        "star-forged-note-off",
+        handleBrowserNoteOff
+      );
+
+      browserNotesRef.current =
+        [];
+
       cancelAnimationFrame(
         animationFrameId
       );
 
       starGeometry.dispose();
       starMaterial.dispose();
+
+      if (ufoBeam) {
+        ufoBeam.geometry.dispose();
+      }
+
+      if (ufoBeamMaterial) {
+        ufoBeamMaterial.dispose();
+      }
+
+      if (ufoBeamGlow) {
+        ufoBeamGlow.geometry.dispose();
+      }
+
+      if (ufoBeamGlowMaterial) {
+        ufoBeamGlowMaterial.dispose();
+      }
 
       if (
         photoStarRef.current

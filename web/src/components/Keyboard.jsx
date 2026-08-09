@@ -14,8 +14,12 @@ const noteHues = {
 };
 
 function hueFor(note) {
-  const base = noteHues[note[0]] ?? 205;
-  return note.includes("#") ? base + 18 : base;
+  const base =
+    noteHues[note[0]] ?? 205;
+
+  return note.includes("#")
+    ? base + 18
+    : base;
 }
 
 function Keyboard({
@@ -42,21 +46,42 @@ function Keyboard({
     await synth.current.context.resume();
 
     synth.current.triggerAttack(note);
+
+    // Let the visualizer know that the browser keyboard is being played.
+    window.dispatchEvent(
+      new CustomEvent(
+        "star-forged-note-on",
+        {
+          detail: { note },
+        }
+      )
+    );
   };
 
   const stopNote = (note) => {
     // Normal release:
-    // 1 seconds when Sustain is OFF
+    // 1 second when Sustain is OFF
     //
     // Sustain release:
-    // 6seconds when Sustain is ON
+    // 6 seconds when Sustain is ON
     synth.current.set({
       envelope: {
-        release: sustain ? 6: 1,
+        release: sustain
+          ? 6
+          : 1,
       },
     });
 
     synth.current.triggerRelease(note);
+
+    window.dispatchEvent(
+      new CustomEvent(
+        "star-forged-note-off",
+        {
+          detail: { note },
+        }
+      )
+    );
   };
 
   return (
@@ -88,7 +113,9 @@ function Keyboard({
 
         <span className="divider" />
 
-        <span className="label">Octave</span>
+        <span className="label">
+          Octave
+        </span>
 
         <button
           className="scale-btn"
@@ -112,7 +139,9 @@ function Keyboard({
 
         <span className="divider" />
 
-        <span className="label">Buttons</span>
+        <span className="label">
+          Buttons
+        </span>
 
         {SPREADS.map((name) => (
           <button
@@ -128,17 +157,24 @@ function Keyboard({
 
       <div className="keyboard">
         {notes.map((note, i) => {
-          const btn = buttonFor(note, buttonNotes);
+          const btn =
+            buttonFor(
+              note,
+              buttonNotes
+            );
 
           return (
             <button
               key={note + i}
               style={{
-                "--glow-hue": hueFor(note),
+                "--glow-hue":
+                  hueFor(note),
               }}
               className={[
                 "key",
-                activeNotes.includes(note)
+                activeNotes.includes(
+                  note
+                )
                   ? "pico-active"
                   : "",
                 btn
@@ -147,8 +183,12 @@ function Keyboard({
               ]
                 .filter(Boolean)
                 .join(" ")}
-              onMouseDown={() => startNote(note)}
-              onMouseUp={() => stopNote(note)}
+              onMouseDown={() =>
+                startNote(note)
+              }
+              onMouseUp={() =>
+                stopNote(note)
+              }
               onMouseLeave={(e) => {
                 if (e.buttons) {
                   stopNote(note);
