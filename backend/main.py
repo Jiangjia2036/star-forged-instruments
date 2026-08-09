@@ -7,6 +7,7 @@ port.
 """
 
 from pathlib import Path
+import re
 from typing import Literal
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
@@ -108,11 +109,13 @@ class MirrorHub:
 
     # Prefixes whose latest value is worth replaying to a new viewer.
     STATE_PREFIXES = ("VOL_", "SUSTAIN_", "EFFECT_ECHO_", "PICO_LINK_")
+    NOTE_NAME = re.compile(r"^[A-G]#?[0-8]$")
 
     def __init__(self) -> None:
         self._clients: set[WebSocket] = set()
         self._state: dict[str, str] = {}
         self._held_notes: set[str] = set()
+        self._publisher: WebSocket | None = None
 
     async def join(self, socket: WebSocket) -> None:
         await socket.accept()
@@ -121,22 +124,40 @@ class MirrorHub:
         for line in self._snapshot():
             await socket.send_text(line)
 
-    def leave(self, socket: WebSocket) -> None:
+    async def leave(self, socket: WebSocket) -> None:
         self._clients.discard(socket)
 
-        # The publisher dropping off leaves every viewer showing a board that
-        # is no longer there, so treat it as a disconnect for the next joiner.
+        # If the serial-owning browser disappears, immediately release every
+        # mirrored note. Otherwise a missed NOTE_OFF leaves the UFO moving
+        # forever on every viewer that stayed connected.
+        if socket is self._publisher:
+            self._publisher = None
+            self._held_notes.clear()
+            self._state["PICO_LINK_"] = "PICO_LINK_OFF"
+            await self._broadcast("PICO_NOTES_", exclude=socket)
+            await self._broadcast("PICO_LINK_OFF", exclude=socket)
+
         if not self._clients:
             self._state.clear()
             self._held_notes.clear()
+            self._publisher = None
 
     def _snapshot(self) -> list[str]:
         lines = list(self._state.values())
-        lines.extend("NOTE_%s_ON" % note for note in sorted(self._held_notes))
+
+        if self._state.get("PICO_LINK_") == "PICO_LINK_ON":
+            lines.append("PICO_NOTES_" + ",".join(sorted(self._held_notes)))
 
         return lines
 
     def _remember(self, line: str) -> None:
+        if line.startswith("PICO_NOTES_"):
+            names = line[len("PICO_NOTES_"):].split(",")
+            self._held_notes = {
+                name for name in names if self.NOTE_NAME.fullmatch(name)
+            }
+            return
+
         if line.startswith("NOTE_"):
             body = line[5:]
 
@@ -157,19 +178,39 @@ class MirrorHub:
 
                 return
 
-    async def relay(self, line: str, sender: WebSocket) -> None:
-        self._remember(line)
-
-        # Everyone except the sender: the publisher already applied its own
-        # line locally, and echoing it back would double-handle every event.
+    async def _broadcast(
+        self,
+        line: str,
+        *,
+        exclude: WebSocket | None = None,
+    ) -> None:
         for client in list(self._clients):
-            if client is sender:
+            if client is exclude:
                 continue
 
             try:
                 await client.send_text(line)
             except (RuntimeError, WebSocketDisconnect):
                 self._clients.discard(client)
+
+    async def relay(self, line: str, sender: WebSocket) -> None:
+        # PICO_LINK_ON claims the publisher role. Once claimed, viewers are
+        # read-only and cannot accidentally inject note events into the show.
+        if line == "PICO_LINK_ON":
+            if self._publisher is not None and self._publisher is not sender:
+                return
+            self._publisher = sender
+        elif sender is not self._publisher:
+            return
+
+        self._remember(line)
+
+        # Everyone except the sender: the publisher already applied its own
+        # line locally, and echoing it back would double-handle every event.
+        await self._broadcast(line, exclude=sender)
+
+        if line == "PICO_LINK_OFF":
+            self._publisher = None
 
 
 hub = MirrorHub()
@@ -189,7 +230,7 @@ async def mirror(socket: WebSocket) -> None:
     except WebSocketDisconnect:
         pass
     finally:
-        hub.leave(socket)
+        await hub.leave(socket)
 
 
 # FastAPI 0.138+ provides frontend() specifically for built SPAs. Register it

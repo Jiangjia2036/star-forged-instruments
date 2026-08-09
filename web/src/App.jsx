@@ -37,6 +37,7 @@ function App() {
   const [selectedEffect, setSelectedEffect] = useState("");
 
   const [picoConnected, setPicoConnected] = useState(false);
+  const picoConnectedRef = useRef(false);
   const [activeNotes, setActiveNotes] = useState([]);
   const [apiOnline, setApiOnline] = useState(null);
 
@@ -189,6 +190,18 @@ function App() {
   };
 
   const handleLine = (line) => {
+    const notesSnapshot = line.match(/^PICO_NOTES_(.*)$/);
+    if (notesSnapshot) {
+      const notes = notesSnapshot[1]
+        ? notesSnapshot[1]
+            .split(",")
+            .filter((note) => /^[A-G]#?[0-8]$/.test(note))
+        : [];
+
+      updateActiveNotes([...new Set(notes)]);
+      return;
+    }
+
     const noteMatch = line.match(/^NOTE_([A-G]#?[0-8])_(ON|OFF)$/);
     if (noteMatch) {
       const [, note, action] = noteMatch;
@@ -256,7 +269,20 @@ function App() {
       onStatus: (up) => {
         // Losing the hub tells us nothing about a board on another machine,
         // so stop claiming one is there.
-        if (!up) setMirrored(false);
+        if (!up) {
+          setMirrored(false);
+          return;
+        }
+
+        // A reconnect may have missed any number of NOTE_ON/OFF messages.
+        // Reclaim the publisher role and replace the hub's held-note set with
+        // one authoritative snapshot from the serial-owning browser.
+        if (picoConnectedRef.current) {
+          bridge.publish("PICO_LINK_ON");
+          bridge.publish(
+            "PICO_NOTES_" + activeNotesRef.current.join(",")
+          );
+        }
       },
     });
 
@@ -283,10 +309,15 @@ function App() {
           bridgeRef.current?.publish(line);
         },
         onConnect: () => {
+          picoConnectedRef.current = true;
           setPicoConnected(true);
           bridgeRef.current?.publish("PICO_LINK_ON");
+          bridgeRef.current?.publish(
+            "PICO_NOTES_" + activeNotesRef.current.join(",")
+          );
         },
         onDisconnect: () => {
+          picoConnectedRef.current = false;
           setPicoConnected(false);
           updateActiveNotes([]);
           bridgeRef.current?.publish("PICO_LINK_OFF");
