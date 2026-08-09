@@ -9,6 +9,7 @@ import SongPlayer from "./components/SongPlayer";
 import InstrumentPage from "./components/InstrumentPage";
 import TeamPage from "./components/TeamPage";
 import { PicoSerial, isSerialSupported } from "./pico-serial";
+import { PicoBridge } from "./pico-bridge";
 import { buttonNotes as computeButtonNotes } from "./scales";
 
 const PAGE_IDS = new Set(["perform", "instrument", "team"]);
@@ -62,7 +63,12 @@ function App() {
 
   const picoNotes = computeButtonNotes(root, octave, spread);
 
+  // A board plugged into ANOTHER computer, reaching us through the mirror.
+  // Kept apart from picoConnected, which means "this browser owns the port".
+  const [mirrored, setMirrored] = useState(false);
+
   const serialRef = useRef(null);
+  const bridgeRef = useRef(null);
   // mirror of activeNotes for use inside serial callbacks
   const activeNotesRef = useRef([]);
 
@@ -219,11 +225,49 @@ function App() {
       return;
     }
 
+    // Published by whichever machine owns the serial port, so viewers on
+    // other computers can show the board as connected rather than sitting
+    // on "Disconnected" while someone is clearly playing it.
+    const linkMatch = line.match(/^PICO_LINK_(ON|OFF)$/);
+    if (linkMatch) {
+      const up = linkMatch[1] === "ON";
+
+      setMirrored(up);
+      if (!up) updateActiveNotes([]);
+
+      return;
+    }
+
     // TRACK_* lines are ignored. Backing tracks play through the computer's
     // speakers now, so the board's own player is never asked to start and
     // the progress bar is driven by the browser's audio element instead.
     // PICO_READY and any debug lines land here too.
   };
+
+  // handleLine closes over current state, so it is rebuilt every render. The
+  // bridge is created once, so it calls through this ref rather than
+  // capturing a stale copy.
+  const handleLineRef = useRef(null);
+  handleLineRef.current = handleLine;
+
+  useEffect(() => {
+    const bridge = new PicoBridge({
+      onLine: (line) => handleLineRef.current?.(line),
+      onStatus: (up) => {
+        // Losing the hub tells us nothing about a board on another machine,
+        // so stop claiming one is there.
+        if (!up) setMirrored(false);
+      },
+    });
+
+    bridgeRef.current = bridge;
+    bridge.connect();
+
+    return () => {
+      bridge.disconnect();
+      bridgeRef.current = null;
+    };
+  }, []);
 
   const connectPico = async () => {
     if (!isSerialSupported()) {
@@ -232,11 +276,20 @@ function App() {
     }
     try {
       serialRef.current = new PicoSerial({
-        onLine: handleLine,
-        onConnect: () => setPicoConnected(true),
+        // Handle it here, then hand the same line to every other computer
+        // watching, so their pages stay identical to this one.
+        onLine: (line) => {
+          handleLine(line);
+          bridgeRef.current?.publish(line);
+        },
+        onConnect: () => {
+          setPicoConnected(true);
+          bridgeRef.current?.publish("PICO_LINK_ON");
+        },
         onDisconnect: () => {
           setPicoConnected(false);
           updateActiveNotes([]);
+          bridgeRef.current?.publish("PICO_LINK_OFF");
         },
       });
       await serialRef.current.connect();
@@ -337,20 +390,42 @@ function App() {
 
             <span
               className={
-                picoConnected
+                picoConnected || mirrored
                   ? "pico-status on"
                   : "pico-status off"
               }
+              title={
+                mirrored && !picoConnected
+                  ? "The board is plugged into another computer. This page is following it."
+                  : undefined
+              }
             >
-              {picoConnected ? "Connected" : "Disconnected"}
+              {picoConnected
+                ? "Connected"
+                : mirrored
+                  ? "Mirroring"
+                  : "Disconnected"}
             </span>
 
-            <button
-              className="connect-btn"
-              onClick={picoConnected ? disconnectPico : connectPico}
-            >
-              {picoConnected ? "Disconnect" : "Connect Pico"}
-            </button>
+            {/* Web Serial needs a secure context, so it exists on localhost
+                and not over a plain http:// IP. Offering the button to a
+                viewer would only produce an error, so they get the mirror
+                instead. */}
+            {isSerialSupported() ? (
+              <button
+                className="connect-btn"
+                onClick={picoConnected ? disconnectPico : connectPico}
+              >
+                {picoConnected ? "Disconnect" : "Connect Pico"}
+              </button>
+            ) : (
+              <span
+                className="api-status"
+                title="Open the site on the host machine at http://localhost:5173 to connect the board."
+              >
+                Viewer
+              </span>
+            )}
           </div>
         </header>
 
