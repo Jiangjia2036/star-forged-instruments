@@ -2,30 +2,45 @@ import * as THREE from "three";
 import { useRef, useEffect } from "react";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
 
-function Visualizer({ analyzer, currentPage, activeNotes = [] }) {
-  const mountRef = useRef(null);
+function Visualizer({
+  analyzer,
+  currentPage,
+  activeNotes = []
+}) {
+  const mountRef =
+    useRef(null);
 
-  // Pico notes do not play through the browser synth, so the analyser hears
-  // nothing when the instrument is played. Mirroring held notes into a ref
-  // lets the animation loop react to the instrument itself.
-  const notesRef = useRef([]);
-  notesRef.current = activeNotes;
+  const notesRef =
+    useRef([]);
 
-  const sceneRef = useRef(null);
-  const cameraRef = useRef(null);
-  const rendererRef = useRef(null);
+  notesRef.current =
+    activeNotes;
 
-  const currentPageRef = useRef(currentPage);
+  const sceneRef =
+    useRef(null);
 
-  const transitionRef = useRef(null);
+  const cameraRef =
+    useRef(null);
 
-  const ufoAwayRef = useRef(false);
+  const rendererRef =
+    useRef(null);
 
-  const photoStarRef = useRef(null);
+  const currentPageRef =
+    useRef(currentPage);
+
+  const transitionRef =
+    useRef(null);
+
+  const ufoAwayRef =
+    useRef(false);
+
+  const photoStarRef =
+    useRef(null);
 
   useEffect(() => {
     if (
-      currentPageRef.current === currentPage
+      currentPageRef.current ===
+      currentPage
     ) {
       return;
     }
@@ -38,42 +53,57 @@ function Visualizer({ analyzer, currentPage, activeNotes = [] }) {
     );
 
     if (
-      currentPageRef.current === "instrument" &&
+      currentPageRef.current ===
+        "instrument" &&
       currentPage === "team"
     ) {
       transitionRef.current = {
         type: "fly-away",
-        startTime: performance.now(),
+        startTime:
+          performance.now(),
       };
 
-      ufoAwayRef.current = false;
+      ufoAwayRef.current =
+        false;
     }
 
     if (
-      currentPageRef.current === "team" &&
-      currentPage === "instrument"
+      currentPageRef.current ===
+        "team" &&
+      currentPage ===
+        "instrument"
     ) {
       transitionRef.current = {
         type: "fly-in",
-        startTime: performance.now(),
+        startTime:
+          performance.now(),
       };
 
-      ufoAwayRef.current = true;
+      ufoAwayRef.current =
+        true;
     }
 
-    currentPageRef.current = currentPage;
+    currentPageRef.current =
+      currentPage;
   }, [currentPage]);
 
   useEffect(() => {
-    const width = window.innerWidth;
-    const height = window.innerHeight;
+    const width =
+      window.innerWidth;
 
-    const scene = new THREE.Scene();
+    const height =
+      window.innerHeight;
+
+    const scene =
+      new THREE.Scene();
 
     scene.background =
-      new THREE.Color(0x000000);
+      new THREE.Color(
+        0x000000
+      );
 
-    sceneRef.current = scene;
+    sceneRef.current =
+      scene;
 
     const camera =
       new THREE.PerspectiveCamera(
@@ -89,7 +119,8 @@ function Visualizer({ analyzer, currentPage, activeNotes = [] }) {
       6
     );
 
-    cameraRef.current = camera;
+    cameraRef.current =
+      camera;
 
     const renderer =
       new THREE.WebGLRenderer({
@@ -127,7 +158,8 @@ function Visualizer({ analyzer, currentPage, activeNotes = [] }) {
     renderer.domElement.style.zIndex =
       "0";
 
-    rendererRef.current = renderer;
+    rendererRef.current =
+      renderer;
 
     mountRef.current.appendChild(
       renderer.domElement
@@ -139,7 +171,9 @@ function Visualizer({ analyzer, currentPage, activeNotes = [] }) {
         2
       );
 
-    scene.add(ambientLight);
+    scene.add(
+      ambientLight
+    );
 
     const directionalLight =
       new THREE.DirectionalLight(
@@ -162,11 +196,18 @@ function Visualizer({ analyzer, currentPage, activeNotes = [] }) {
 
     const starVertices = [];
 
-    for (let i = 0; i < 1000; i++) {
+    for (
+      let i = 0;
+      i < 1000;
+      i++
+    ) {
       starVertices.push(
-        (Math.random() - 0.5) * 200,
-        (Math.random() - 0.5) * 200,
-        (Math.random() - 0.5) * 200
+        (Math.random() - 0.5) *
+          200,
+        (Math.random() - 0.5) *
+          200,
+        (Math.random() - 0.5) *
+          200
       );
     }
 
@@ -184,13 +225,22 @@ function Visualizer({ analyzer, currentPage, activeNotes = [] }) {
         size: 0.5,
       });
 
+    const starGroup =
+      new THREE.Group();
+
+    scene.add(
+      starGroup
+    );
+
     const stars =
       new THREE.Points(
         starGeometry,
         starMaterial
       );
 
-    scene.add(stars);
+    starGroup.add(
+      stars
+    );
 
     const photoStarLoader =
       new THREE.TextureLoader();
@@ -217,20 +267,21 @@ function Visualizer({ analyzer, currentPage, activeNotes = [] }) {
           );
 
         photoStar.scale.set(
-          0.8,
-          0.8,
-          1
+            0.45,
+            0.45,
+            1
         );
 
         photoStar.position.set(
-          -7,
-          3,
-          -10
+          -5,
+          2.5,
+          -8
         );
 
-        photoStar.visible = true;
+        photoStar.visible =
+          true;
 
-        scene.add(
+        starGroup.add(
           photoStar
         );
 
@@ -261,7 +312,8 @@ function Visualizer({ analyzer, currentPage, activeNotes = [] }) {
       "/models/ufo.glb",
 
       (gltf) => {
-        ufo = gltf.scene;
+        ufo =
+          gltf.scene;
 
         ufo.scale.set(
           0.02,
@@ -298,9 +350,11 @@ function Visualizer({ analyzer, currentPage, activeNotes = [] }) {
     const entranceDuration =
       4.0;
 
-    let entranceStartTime = null;
+    let entranceStartTime =
+      null;
 
-    let entranceComplete = false;
+    let entranceComplete =
+      false;
 
     let animationFrameId;
     let lastFrameTime = 0;
@@ -325,7 +379,9 @@ function Visualizer({ analyzer, currentPage, activeNotes = [] }) {
 
       let rms = 0;
 
-      if (analyzer?.current) {
+      if (
+        analyzer?.current
+      ) {
         const values =
           analyzer.current.getValue();
 
@@ -341,9 +397,11 @@ function Visualizer({ analyzer, currentPage, activeNotes = [] }) {
             values[i];
         }
 
-        rms = Math.sqrt(
-          sum / values.length
-        );
+        rms =
+          Math.sqrt(
+            sum /
+              values.length
+          );
       }
 
       // Held notes on the instrument, so the scene reacts even though the
@@ -358,47 +416,29 @@ function Visualizer({ analyzer, currentPage, activeNotes = [] }) {
         rms * 0.003 +
         held * 0.0016;
 
-      stars.rotation.y +=
+      starGroup.rotation.y +=
         starSpeed * frameScale;
 
-      stars.rotation.x +=
+      starGroup.rotation.x +=
         (0.0002 +
           rms * 0.001 +
           held * 0.0006) *
         frameScale;
 
-      if (photoStarRef.current) {
+      if (
+        photoStarRef.current
+      ) {
         const photoStar =
           photoStarRef.current;
 
-        photoStar.visible = true;
-
-        photoStar.position.x =
-          Math.sin(
-            t * 0.45
-          ) * 7;
-
-        photoStar.position.y =
-          Math.cos(
-            t * 0.35
-          ) * 3.5;
-
-        photoStar.position.z =
-          -10 +
-          Math.sin(
-            t * 0.22
-          ) * 2;
-
-        photoStar.rotation.z =
-          Math.sin(
-            t * 0.5
-          ) * 0.15;
+        photoStar.visible =
+          true;
 
         const twinkle =
-          0.75 +
+          0.8 +
           Math.sin(
-            t * 2.2
-          ) * 0.25;
+            t * 1.8
+          ) * 0.2;
 
         photoStar.material.opacity =
           twinkle;
@@ -407,7 +447,8 @@ function Visualizer({ analyzer, currentPage, activeNotes = [] }) {
       if (ufo) {
         if (
           !entranceComplete &&
-          transitionRef.current === null
+          transitionRef.current ===
+            null
         ) {
           if (
             entranceStartTime ===
@@ -425,7 +466,9 @@ function Visualizer({ analyzer, currentPage, activeNotes = [] }) {
             elapsed /
             entranceDuration;
 
-          if (progress >= 1) {
+          if (
+            progress >= 1
+          ) {
             progress = 1;
 
             entranceComplete =
@@ -463,8 +506,7 @@ function Visualizer({ analyzer, currentPage, activeNotes = [] }) {
           ufo.rotation.z =
             Math.sin(
               t * 0.8
-            ) *
-            0.08;
+            ) * 0.08;
         }
 
         else if (
@@ -485,7 +527,9 @@ function Visualizer({ analyzer, currentPage, activeNotes = [] }) {
             elapsed /
             duration;
 
-          if (progress >= 1) {
+          if (
+            progress >= 1
+          ) {
             progress = 1;
           }
 
@@ -535,7 +579,7 @@ function Visualizer({ analyzer, currentPage, activeNotes = [] }) {
             ufo.rotation.y +=
               0.02 * frameScale;
 
-            stars.rotation.y +=
+            starGroup.rotation.y +=
               0.002 * frameScale;
 
             if (
@@ -591,13 +635,12 @@ function Visualizer({ analyzer, currentPage, activeNotes = [] }) {
             ufo.rotation.z =
               Math.sin(
                 t * 5
-              ) *
-              0.08;
+              ) * 0.08;
 
             ufo.rotation.y +=
               0.02 * frameScale;
 
-            stars.rotation.y +=
+            starGroup.rotation.y +=
               0.002 * frameScale;
 
             if (
@@ -655,8 +698,7 @@ function Visualizer({ analyzer, currentPage, activeNotes = [] }) {
           ufo.rotation.z =
             Math.sin(
               t * 0.6
-            ) *
-            0.06;
+            ) * 0.06;
 
           ufo.rotation.y +=
             (0.002 +
