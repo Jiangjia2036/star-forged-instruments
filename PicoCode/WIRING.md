@@ -75,9 +75,9 @@ A MAX98357A-class breakout:
 
 ### The GAIN pin is the answer to "it's too quiet"
 
-The direct synthio engine raises a single note while automatically lowering
-each voice in a chord. The amplifier's GAIN pin still controls the final
-analogue gain:
+The synthio engine raises a single note while automatically sharing a clean
+peak budget across every voice in a chord. The amplifier's GAIN pin still
+controls the final analogue gain:
 
 | GAIN pin        | Gain  |
 | --------------- | ----- |
@@ -89,18 +89,18 @@ analogue gain:
 
 A single wire from GAIN to GND doubles the voltage gain, but it also makes the
 amplifier reach its analogue limit sooner. If chords crackle at high volume,
-leave GAIN floating (9 dB), turn the volume pot down, or reduce `CHORD_LEVEL`
-in `config.py`.
+leave GAIN floating (9 dB), turn the volume pot down, or reduce
+`CHORD_TOTAL_LEVEL` in `config.py`.
 
-Audio is configured as mono, signed 16-bit, 22,050 Hz.
+Audio is configured as mono, signed 16-bit, 44,100 Hz.
 
 ## Signal flow
 
 ```
-  buttons ─────→ Pico ─→ synthio ───────────────→ I2S ─→ speaker
-  sustain ────────┘          └─→ optional echo ──┘
-  volume pot ─────┘
-                 └─→ USB serial ─→ website (keys light, visuals react)
+  buttons ─→ synthio ─→ optional effects ─→ tone ─┐
+  audio file ──────────────────────────────────────┴─→ mixer ─→ I2S ─→ speaker
+  volume pot ───────────────────────────────────────────┘
+  buttons ─→ USB serial ─→ website (keys light, visuals react)
 ```
 
 ## Adding the sustain pedal
@@ -112,8 +112,8 @@ A momentary footswitch gives true piano behaviour: notes ring only while it
 is held. A latching toggle works too and is easier to reach by hand, at the
 cost of having to switch it off deliberately.
 
-With the pedal open, a released key fades in about 110 ms. With it closed,
-the release stretches to roughly 2.6 seconds, so notes overlap into chords
+With the pedal open, a released key fades in about 45 ms. With it closed,
+the release stretches to roughly 1.5 seconds, so notes overlap into chords
 the way a piano's dampers allow.
 
 The website mirrors this: the Sustain button lights amber whether the pedal

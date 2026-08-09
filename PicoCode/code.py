@@ -2,11 +2,12 @@
 
 Live audio path:
 
-    buttons -> synthio -> [chorus] -> [echo] -> [reverb] -> limiter -> I2S
+    buttons -> synthio -> [chorus] -> [echo] -> [reverb] -> tone -> I2S
 
 Every stage is a CircuitPython DSP block running in compiled code. Optional
-stages are inserted only while enabled; the limiter is always present and
-always last. Physical button messages still go to the website for visuals,
+stages are inserted only while enabled. Chord gain stays below synthio's
+internal compressor knee instead of distorting and trying to repair the
+signal later. Physical button messages still go to the website for visuals,
 while sound stays on the Pico.
 """
 
@@ -151,7 +152,7 @@ def handle(line):
 
 
 link.send("PICO_READY")
-link.send("AUDIO_LIMITED")
+link.send("AUDIO_HEADROOM_SAFE")
 link.send("TUNED_" + "_".join(engine.note_names))
 
 vol_reported = -1

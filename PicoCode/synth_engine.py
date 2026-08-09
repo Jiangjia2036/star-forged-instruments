@@ -1,8 +1,6 @@
-"""Polyphonic synthio engine with a clean sine default and optional effects."""
+"""Polyphonic synthio engine with a clean sine default and safe chord gain."""
 
 import array
-
-import math
 
 import synthio
 
@@ -34,7 +32,6 @@ class SynthEngine:
 
         # index -> (Note, gain ramp, tremolo LFO, vibrato LFO)
         self._voices = {}
-        self._volume = 1.0
         self.sustain = False
 
         self.wave_name = "SINE"
@@ -57,19 +54,18 @@ class SynthEngine:
         if count <= 0:
             return 0.0
         if count == 1:
-            return config.SINGLE_NOTE_LEVEL * self._volume
+            return config.SINGLE_NOTE_LEVEL
 
-        # Divide by sqrt(N), not N.
+        # synthio mixes all notes before anything in effects.py can process
+        # them. CircuitPython 10.2 applies its own hard-knee compression when
+        # that sum exceeds roughly 85% of full scale. Dividing by sqrt(N)
+        # kept average loudness high but repeatedly crossed that knee, which
+        # created the gritty intermodulation heard with two buttons.
         #
-        # Two tones at different frequencies only reach their combined peak
-        # in the brief moments their waveforms line up; on average they sum
-        # as sqrt(N), not N. Dividing by N assumed the worst case at all
-        # times and cost 6 dB the instant a second key went down, which is
-        # what made chords sound like the volume had collapsed.
-        #
-        # The soft limiter last in the chain catches the rare peak
-        # alignment, so this no longer has to be pessimistic.
-        return config.CHORD_TOTAL_LEVEL * self._volume / math.sqrt(count)
+        # Sharing one peak budget between the voices keeps every possible
+        # phase alignment clean. The downstream volume knob then changes the
+        # already-clean chord as a whole.
+        return config.CHORD_TOTAL_LEVEL / count
 
     def _rebalance(self):
         target = self._level_per_note()
@@ -144,13 +140,6 @@ class SynthEngine:
     def all_notes_off(self):
         for index in list(self._voices):
             self.note_off(index)
-
-    def set_volume(self, value):
-        value = max(0.0, min(1.0, value))
-        if abs(value - self._volume) < config.VOLUME_CHANGE_MIN:
-            return
-        self._volume = value
-        self._rebalance()
 
     def set_wave(self, name):
         if name not in WAVES:
