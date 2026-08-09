@@ -16,41 +16,35 @@ function Visualizer({ analyzer, activeNotes = [] }) {
   const rendererRef = useRef(null);
 
   useEffect(() => {
+    const mount = mountRef.current;
     const width = window.innerWidth;
     const height = window.innerHeight;
 
-    sceneRef.current = new THREE.Scene();
-    sceneRef.current.background =
-      new THREE.Color(0x000000);
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x000000);
+    sceneRef.current = scene;
 
-    cameraRef.current =
-      new THREE.PerspectiveCamera(
-        75,
-        width / height,
-        0.1,
-        1000
-      );
-
-    cameraRef.current.position.set(0, 1, 6);
-
-    rendererRef.current =
-      new THREE.WebGLRenderer({
-        antialias: true,
-        alpha: true,
-      });
-
-    rendererRef.current.setPixelRatio(
-      window.devicePixelRatio
+    const camera = new THREE.PerspectiveCamera(
+      75,
+      width / height,
+      0.1,
+      1000
     );
+    cameraRef.current = camera;
 
-    rendererRef.current.setSize(
-      width,
-      height
-    );
+    camera.position.set(0, 1, 6);
 
-    mountRef.current.appendChild(
-      rendererRef.current.domElement
-    );
+    const renderer = new THREE.WebGLRenderer({
+      antialias: true,
+      alpha: true,
+    });
+    rendererRef.current = renderer;
+
+    renderer.setPixelRatio(window.devicePixelRatio);
+
+    renderer.setSize(width, height);
+
+    mount.appendChild(renderer.domElement);
 
     const ambientLight =
       new THREE.AmbientLight(
@@ -58,7 +52,7 @@ function Visualizer({ analyzer, activeNotes = [] }) {
         2
       );
 
-    sceneRef.current.add(ambientLight);
+    scene.add(ambientLight);
 
     const directionalLight =
       new THREE.DirectionalLight(
@@ -72,9 +66,7 @@ function Visualizer({ analyzer, activeNotes = [] }) {
       5
     );
 
-    sceneRef.current.add(
-      directionalLight
-    );
+    scene.add(directionalLight);
 
     const starGeometry =
       new THREE.BufferGeometry();
@@ -108,16 +100,39 @@ function Visualizer({ analyzer, activeNotes = [] }) {
       starMaterial
     );
 
-    sceneRef.current.add(stars);
+    scene.add(stars);
 
     const loader = new GLTFLoader();
 
     let ufo = null;
+    let disposed = false;
+
+    function disposeObject(root) {
+      root.traverse((child) => {
+        child.geometry?.dispose();
+
+        const materials = Array.isArray(child.material)
+          ? child.material
+          : [child.material];
+
+        materials.filter(Boolean).forEach((material) => {
+          Object.values(material).forEach((value) => {
+            if (value?.isTexture) value.dispose();
+          });
+          material.dispose();
+        });
+      });
+    }
 
     loader.load(
       "/models/ufo.glb",
 
       (gltf) => {
+        if (disposed) {
+          disposeObject(gltf.scene);
+          return;
+        }
+
         ufo = gltf.scene;
 
         ufo.scale.set(
@@ -132,7 +147,7 @@ function Visualizer({ analyzer, activeNotes = [] }) {
           0
         );
 
-        sceneRef.current.add(ufo);
+        scene.add(ufo);
       },
 
       undefined,
@@ -142,13 +157,15 @@ function Visualizer({ analyzer, activeNotes = [] }) {
       }
     );
 
-    const clock = new THREE.Clock();
+    const timer = new THREE.Timer();
+    timer.connect(document);
+    let animationFrame = 0;
 
-    function animate() {
-      requestAnimationFrame(animate);
+    function animate(timestamp) {
+      animationFrame = requestAnimationFrame(animate);
+      timer.update(timestamp);
 
-      const t =
-        clock.getElapsedTime();
+      const t = timer.getElapsed();
 
       // How hard the instrument is being played right now
       const held = notesRef.current.length;
@@ -192,10 +209,7 @@ function Visualizer({ analyzer, activeNotes = [] }) {
         ufo.scale.set(pulse, pulse, pulse);
       }
 
-      rendererRef.current.render(
-        sceneRef.current,
-        cameraRef.current
-      );
+      renderer.render(scene, camera);
     }
 
     animate();
@@ -207,15 +221,11 @@ function Visualizer({ analyzer, activeNotes = [] }) {
       const height =
         window.innerHeight;
 
-      cameraRef.current.aspect =
-        width / height;
+      camera.aspect = width / height;
 
-      cameraRef.current.updateProjectionMatrix();
+      camera.updateProjectionMatrix();
 
-      rendererRef.current.setSize(
-        width,
-        height
-      );
+      renderer.setSize(width, height);
     }
 
     window.addEventListener(
@@ -224,6 +234,11 @@ function Visualizer({ analyzer, activeNotes = [] }) {
     );
 
     return () => {
+      disposed = true;
+      cancelAnimationFrame(animationFrame);
+      timer.disconnect();
+      timer.dispose();
+
       window.removeEventListener(
         "resize",
         onWindowResize
@@ -232,16 +247,15 @@ function Visualizer({ analyzer, activeNotes = [] }) {
       starGeometry.dispose();
       starMaterial.dispose();
 
-      rendererRef.current.dispose();
+      if (ufo) disposeObject(ufo);
+
+      renderer.dispose();
 
       if (
-        mountRef.current &&
-        rendererRef.current.domElement
-          .parentNode
+        renderer.domElement.parentNode ===
+        mount
       ) {
-        mountRef.current.removeChild(
-          rendererRef.current.domElement
-        );
+        mount.removeChild(renderer.domElement);
       }
     };
   }, [analyzer]);

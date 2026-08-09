@@ -2,7 +2,8 @@
 
 The Pico connection deliberately stays in the browser through Web Serial.
 FastAPI owns ordinary HTTP concerns: health/configuration APIs and serving the
-built Vite frontend. This avoids two processes competing for COM8.
+built Vite frontend. This avoids two processes competing for the board's COM
+port.
 """
 
 from pathlib import Path

@@ -494,10 +494,20 @@ def render_chunk(
         # B. Flex-controlled filter
         # ------------------------------------------------
 
+        # Coefficient is pre-shifted so the product stays a small int.
+        #
+        # alpha * (dry - y_prev) reached 2.9 billion with two notes held,
+        # past the ~2^30 small int limit, so every sample allocated a big
+        # integer on the heap and the garbage collector ran during audio
+        # rendering. One note stayed under the limit, which is exactly why
+        # single notes sounded fine and chords did not.
+        #
+        # (alpha >> 8) / 256 is the same coefficient as alpha / 65536, just
+        # quantised to 256 steps - inaudible for a filter cutoff.
         y_prev += (
-            alpha
+            (alpha >> 8)
             * (dry_signal - y_prev)
-        ) >> 16
+        ) >> 8
 
 
         # ------------------------------------------------
@@ -549,10 +559,12 @@ def render_chunk(
             pre_vol_out += (wavb[i] * tgain) >> 8
 
 
+        # Same range problem: pre_vol_out * vol_multiplier crossed 2^30 as
+        # soon as a second note was added.
         final_out = (
             pre_vol_out
-            * vol_multiplier
-        ) >> 16
+            * (vol_multiplier >> 8)
+        ) >> 8
 
         final_out = (final_out * gain) >> 8
 
@@ -646,6 +658,13 @@ def run_dsp_engine():
     # Last volume percentage reported to the website
     vol_reported = -1
     vol_counter = 0
+
+    # Smoothed ADC values. A bare read jitters by a few counts every chunk,
+    # and feeding that straight into the filter cutoff and the output level
+    # modulates the tone 88 times a second, which is audible as a warble.
+    # A simple one pole average settles it without adding noticeable lag.
+    vol_smooth = 0
+    alpha_smooth = ALPHA_MIN
 
     # Backing track streaming state
     track_file = None
@@ -840,10 +859,13 @@ def run_dsp_engine():
         # Damper pedal: physical switch or the website
         sustain_held = (not sustain_switch.value()) or web_sustain
 
-        vol_multiplier = volume_pot.read_u16()
+        vol_raw = volume_pot.read_u16()
 
-        if vol_multiplier < VOL_MIN:
-            vol_multiplier = VOL_MIN
+        if vol_raw < VOL_MIN:
+            vol_raw = VOL_MIN
+
+        vol_smooth += (vol_raw - vol_smooth) >> 3
+        vol_multiplier = vol_smooth
 
         # Tell the website where the knob is sitting. One way only - the
         # site never sets the level, it just shows it.
@@ -924,7 +946,10 @@ def run_dsp_engine():
             SENSOR_MAX - SENSOR_MIN
         )
 
-        alpha = ALPHA_MIN + normalized_ratio_scaled
+        alpha_target = ALPHA_MIN + normalized_ratio_scaled
+
+        alpha_smooth += (alpha_target - alpha_smooth) >> 3
+        alpha = alpha_smooth
 
 
         # ====================================================

@@ -1,7 +1,8 @@
 # FastAPI backend
 
 FastAPI serves project APIs and the production Vite build. It does **not**
-open COM8; the browser keeps exclusive access to the Pico through Web Serial.
+open the Pico's COM port; the browser keeps exclusive access through Web
+Serial.
 
 ## Setup
 
