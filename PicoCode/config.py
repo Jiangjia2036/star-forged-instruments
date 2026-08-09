@@ -68,7 +68,7 @@ POS_REPORT_S = 0.25
 # notes sound smooth together.
 #
 # Lower this if chords still sound harsh; raise it if the tone gets muffled.
-TONE_HZ = 5000
+TONE_HZ = 3000 # change to 3000 or lower if it sounds harsh
 TONE_Q = 0.707
 
 # Gain changes ramp inside synthio instead of jumping and creating a click.
@@ -87,14 +87,21 @@ I2S_DATA = board.GP13
 
 # Button N plays DEFAULT_NOTES[N], so order here maps to note order.
 # New buttons are appended, which leaves the existing keys on their notes.
-BUTTON_PINS = (board.GP16, board.GP17, board.GP18, board.GP12)
+BUTTON_PINS = (
+    board.GP16,
+    board.GP17,
+    board.GP18,
+    board.GP12,
+    board.GP11,
+    board.GP10,
+)
 ECHO_SWITCH_PIN = board.GP19       # retained for wiring compatibility
 SUSTAIN_SWITCH_PIN = board.GP20
 VOLUME_PIN = board.A1              # GP27
 
-# Root, third, fifth, then the root an octave up - a full major triad plus
-# the octave, which is enough to play something that sounds finished.
-DEFAULT_NOTES = ["C4", "E4", "G4", "C5"]
+# A major triad arpeggiated across two octaves: root, third, fifth, then the
+# same three an octave higher.
+DEFAULT_NOTES = ["C4", "E4", "G4", "C5", "E5", "G5"]
 
 
 # Click-free envelope ---------------------------------------------------
