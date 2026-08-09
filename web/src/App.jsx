@@ -359,7 +359,10 @@ function App() {
 
   return (
     <>
-      <Visualizer analyzer={analyzer} />
+      <Visualizer
+        analyzer={analyzer}
+        currentPage={currentPage}
+      />
 
       {currentPage === "instrument" ? (
         <>

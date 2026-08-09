@@ -14,21 +14,21 @@ function TeamPage({ onBack }) {
       role: "Audio / DSP",
       description:
         "Worked on sound generation, audio processing, and instrument effects.",
-      image: "https://placehold.co/300x300",
+      image: "/photos/Grayson.jpg",
     },
     {
       name: "Alejandro Padilla",
       role: "Web / UI",
       description:
         "Worked on the interactive website, user interface, and Pico-Web integration.",
-      image: "https://placehold.co/300x300",
+      image: "/photos/Alejandro.png",
     },
     {
       name: "Jiaxiong Jiang",
       role: "3D / Visuals",
       description:
         "Worked on the 3D visualizer, instrument design, and visual presentation.",
-      image: "https://placehold.co/300x300",
+      image:"/photos/Jiaxiong.jpeg"
     },
   ];
 
@@ -61,8 +61,7 @@ function TeamPage({ onBack }) {
           </h2>
 
           <p>
-            We are a team of students building
-            Star Forged Instruments, an interactive
+            We are Star Forged, an interactive
             musical instrument combining hardware,
             software, sound, and visual effects.
           </p>
