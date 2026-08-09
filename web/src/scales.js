@@ -98,3 +98,17 @@ export function buttonFor(note, notesForButtons) {
   const index = notesForButtons.indexOf(note);
   return index === -1 ? null : index + 1;
 }
+
+// A song section hands the keyboard an explicit fifteen-note scale instead
+// of one derived from the key selector. The buttons take the lowest twelve,
+// through the same index 9/10 swap as buttonNotes above - the physical F key
+// sits where the higher of that pair belongs, whatever the notes are called
+// this section.
+export function sectionButtonNotes(scale) {
+  return [
+    scale[0], scale[1], scale[2], scale[3], scale[4],
+    scale[5], scale[6], scale[7], scale[8],
+    scale[10], scale[9],
+    scale[11],
+  ];
+}

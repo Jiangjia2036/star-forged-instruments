@@ -28,8 +28,14 @@ function Keyboard({
   spread,
   setSpread,
   buttonNotes,
+  sectionNotes = null,
+  sectionTitle = null,
 }) {
-  const notes = scaleNotes(root, octave, 2);
+  // While a song section is in force its fifteen notes ARE the keyboard -
+  // exact octaves from the tuning circle. Otherwise the key/octave
+  // selectors decide, as always.
+  const tunedBySong = Boolean(sectionNotes);
+  const notes = sectionNotes ?? scaleNotes(root, octave, 2);
 
   const startNote = async (note) => {
     await synth.current.context.resume();
@@ -43,12 +49,24 @@ function Keyboard({
   return (
     <section className="board">
       <div className="scale-row">
+        {/* A playing section owns the tuning; the selectors would be
+            overridden silently, so they are disabled rather than lying. */}
+        {tunedBySong && (
+          <span
+            className="section-chip"
+            title="This part of the song sets the notes. Stop playback to tune by hand."
+          >
+            ♪ {sectionTitle}
+          </span>
+        )}
+
         <span className="label">Key</span>
 
         {ROOTS.map((name) => (
           <button
             key={name}
             className={root === name ? "scale-btn active" : "scale-btn"}
+            disabled={tunedBySong}
             onClick={() => setRoot(name)}
           >
             {name}
@@ -61,6 +79,7 @@ function Keyboard({
 
         <button
           className="scale-btn"
+          disabled={tunedBySong}
           onClick={() => setOctave(Math.max(2, octave - 1))}
         >
           -
@@ -70,6 +89,7 @@ function Keyboard({
 
         <button
           className="scale-btn"
+          disabled={tunedBySong}
           onClick={() => setOctave(Math.min(6, octave + 1))}
         >
           +
@@ -83,6 +103,7 @@ function Keyboard({
           <button
             key={name}
             className={spread === name ? "scale-btn active" : "scale-btn"}
+            disabled={tunedBySong}
             onClick={() => setSpread(name)}
           >
             {name}

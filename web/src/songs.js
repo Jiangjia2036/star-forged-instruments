@@ -51,20 +51,78 @@ function makeSong(id, title, bpm, sequence, extra = {}) {
   };
 }
 
+// Tuning sections, from the hand-drawn circles in the performance notebook.
+//
+// Each circle is one section of the set: a song, a timestamp range, and the
+// fifteen keys the on-screen keyboard shows for that stretch - two octaves
+// plus the closing root, written with exact octaves. The lowest twelve go to
+// the physical buttons (sectionButtonNotes in scales.js); the top three are
+// the screen-only keys, just as the circles draw three notes past the last
+// numbered button.
+//
+// While a track with sections is playing, these override the key/octave
+// selectors, and every boundary retunes the Pico mid-song.
+
+// "For X-Files" - all naturals from F4. The twelve button notes are
+// F4-C6, exactly as listed in the plan; D6 E6 F6 are the screen-only keys.
+const XFILES_SCALE = [
+  "F4", "G4", "A4", "B4", "C5", "D5", "E5",
+  "F5", "G5", "A5", "B5", "C6", "D6", "E6", "F6",
+];
+
+// "For Television Rules the Nation" - E natural minor from E3.
+const TELEVISION_SCALE = [
+  "E3", "F#3", "G3", "A3", "B3", "C4", "D4",
+  "E4", "F#4", "G4", "A4", "B4", "C5", "D5", "E5",
+];
+
+// "For Da Funk" - D natural minor from D3, A# spelled as drawn.
+const DAFUNK_SCALE = [
+  "D3", "E3", "F3", "G3", "A3", "A#3", "C4",
+  "D4", "E4", "F4", "G4", "A4", "A#4", "C5", "D5",
+];
+
+// The medley's circles tile its whole timeline: 0s -> 40s -> 2m12s -> end.
+// `until: null` means "until the track ends".
+const MEDLEY_SECTIONS = [
+  { at: 0, until: 40, title: "X-Files", scale: XFILES_SCALE },
+  { at: 40, until: 132, title: "Television Rules the Nation", scale: TELEVISION_SCALE },
+  { at: 132, until: null, title: "Da Funk", scale: DAFUNK_SCALE },
+];
+
+// Which section is active at `seconds` into a track, or null.
+export function sectionAt(song, seconds) {
+  if (!song?.sections) return null;
+
+  return (
+    song.sections.find(
+      (section) =>
+        seconds >= section.at &&
+        (section.until === null || seconds < section.until)
+    ) ?? null
+  );
+}
+
 export const SONGS = [
   // Backing tracks with no chart - they just play and you improvise over
   // them. The files live in web/public/audio and play through the computer's
   // speakers, as every backing track does.
   //
-  // Nothing in the setlist currently has a chart, so the cue panel stays in
-  // its free-play state. Pass a sequence as the fourth argument to bring the
-  // press-this-key cues back for a song.
+  // The standalone X-Files theme is the same song as the medley's opening
+  // section, so it carries the same circle. Open-ended rather than 0-40s:
+  // on the medley that boundary exists because Television takes over there,
+  // and this track has nothing to take over.
   makeSong(
     "x-files",
     "The X-Files (theme)",
     120,
     [],
-    { audioUrl: "/audio/x-files-theme.mp3" }
+    {
+      audioUrl: "/audio/x-files-theme.mp3",
+      sections: [
+        { at: 0, until: null, title: "X-Files", scale: XFILES_SCALE },
+      ],
+    }
   ),
 
   makeSong(
@@ -72,7 +130,10 @@ export const SONGS = [
     "Singularity Hack 2026",
     120,
     [],
-    { audioUrl: "/audio/SingularityHAcK2026.mp3" }
+    {
+      audioUrl: "/audio/SingularityHAcK2026.mp3",
+      sections: MEDLEY_SECTIONS,
+    }
   ),
 ];
 

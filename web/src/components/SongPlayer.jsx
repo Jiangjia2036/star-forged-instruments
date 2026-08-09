@@ -1,10 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 
-import { SONGS } from "../songs";
+import { SONGS, sectionAt } from "../songs";
 
 // Plays backing tracks and reports progress. Note detection, suggested
 // buttons, keyboard highlighting, and automatic key following are
 // intentionally omitted so playback remains a simple listen-and-play mode.
+//
+// What playback DOES drive is the tuning: a track can carry `sections` -
+// the hand-drawn circles, each a timestamp range and a fifteen-note scale.
+// Crossing a boundary reports the new section upward, which retunes both
+// the on-screen keyboard and the instrument itself in time with the song.
 
 function formatTime(seconds) {
   if (!isFinite(seconds)) return "0:00";
@@ -12,7 +17,7 @@ function formatTime(seconds) {
   return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
 }
 
-function SongPlayer({ onProgress }) {
+function SongPlayer({ onProgress, onSectionChange }) {
   const [trackIndex, setTrackIndex] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [elapsed, setElapsed] = useState(0);
@@ -23,8 +28,29 @@ function SongPlayer({ onProgress }) {
   const progressRef = useRef(onProgress);
   progressRef.current = onProgress;
 
+  const sectionChangeRef = useRef(onSectionChange);
+  sectionChangeRef.current = onSectionChange;
+
+  // Section objects are module constants, so identity comparison is enough
+  // to notice a boundary crossing without re-reporting every frame.
+  const lastSectionRef = useRef(null);
+
+  // Mirrored into state for the transport chip. Deliberately NOT derived
+  // from `elapsed`: that clock runs on animation frames, which freeze in a
+  // hidden tab, while sections ride the audio's own timeupdate events. The
+  // chip has to follow the section that is actually in force.
+  const [activeSection, setActiveSection] = useState(null);
+
   const track = SONGS[Math.min(trackIndex, SONGS.length - 1)];
   const duration = track.duration || 0;
+
+  const reportSection = (section) => {
+    if (section === lastSectionRef.current) return;
+
+    lastSectionRef.current = section;
+    setActiveSection(section);
+    sectionChangeRef.current?.(section);
+  };
 
   const stop = () => {
     setPlaying(false);
@@ -41,6 +67,9 @@ function SongPlayer({ onProgress }) {
 
     setElapsed(0);
     progressRef.current?.(0);
+
+    // Stopping hands the keyboard back to the manual key/octave selectors
+    reportSection(null);
   };
 
   useEffect(() => {
@@ -48,6 +77,11 @@ function SongPlayer({ onProgress }) {
       if (frameRef.current) cancelAnimationFrame(frameRef.current);
       if (audioRef.current) audioRef.current.pause();
       progressRef.current?.(0);
+
+      if (lastSectionRef.current !== null) {
+        lastSectionRef.current = null;
+        sectionChangeRef.current?.(null);
+      }
     };
   }, []);
 
@@ -63,6 +97,17 @@ function SongPlayer({ onProgress }) {
       audio = new Audio(track.audioUrl);
       audioRef.current = audio;
 
+      // Retunes ride on the media clock, not the animation frame. rAF
+      // freezes whenever the tab is hidden, and a section change that
+      // waits for the tab to be foregrounded again would leave the
+      // instrument tuned to the previous part of the song. timeupdate
+      // keeps firing (~4/s) while audio plays, hidden or not.
+      audio.addEventListener("timeupdate", () => {
+        if (audioRef.current === audio) {
+          reportSection(sectionAt(track, audio.currentTime));
+        }
+      });
+
       try {
         await audio.play();
       } catch (err) {
@@ -74,6 +119,10 @@ function SongPlayer({ onProgress }) {
 
     startedAtRef.current = performance.now();
     setPlaying(true);
+
+    // The opening section takes effect the moment Play lands, not a frame
+    // later - the first thing the performer sees is the right tuning.
+    reportSection(sectionAt(track, 0));
 
     const tick = () => {
       const currentAudio = audioRef.current;
@@ -89,6 +138,10 @@ function SongPlayer({ onProgress }) {
       progressRef.current?.(
         total ? Math.min(100, (now / total) * 100) : 0
       );
+
+      // The audio clock decides which circle is in force, so the retune
+      // lands with the song rather than with a separate timer.
+      reportSection(sectionAt(track, now));
 
       const finished = currentAudio ? currentAudio.ended : now >= total;
 
@@ -110,6 +163,14 @@ function SongPlayer({ onProgress }) {
   const progress = shownTotal
     ? Math.min(100, (elapsed / shownTotal) * 100)
     : 0;
+
+  // Where later circles take over, as marks on the progress bar
+  const boundaries = (track.sections ?? [])
+    .filter((section) => section.at > 0 && shownTotal > 0)
+    .map((section) => ({
+      title: section.title,
+      percent: Math.min(100, (section.at / shownTotal) * 100),
+    }));
 
   return (
     <section className="stage">
@@ -133,6 +194,12 @@ function SongPlayer({ onProgress }) {
           {playing ? "Stop" : "Play"}
         </button>
 
+        {activeSection && (
+          <span className="section-chip" title="The keyboard and instrument are tuned to this part of the song">
+            ♪ {activeSection.title}
+          </span>
+        )}
+
         <span className="time">
           {formatTime(elapsed)} / {formatTime(shownTotal)}
         </span>
@@ -140,6 +207,15 @@ function SongPlayer({ onProgress }) {
 
       <div className="progress-track">
         <div className="progress-fill" style={{ width: progress + "%" }} />
+
+        {boundaries.map((mark) => (
+          <span
+            key={mark.title + mark.percent}
+            className="progress-mark"
+            style={{ left: mark.percent + "%" }}
+            title={mark.title + " starts here"}
+          />
+        ))}
       </div>
     </section>
   );

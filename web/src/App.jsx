@@ -10,7 +10,10 @@ import InstrumentPage from "./components/InstrumentPage";
 import TeamPage from "./components/TeamPage";
 import { PicoSerial, isSerialSupported } from "./pico-serial";
 import { PicoBridge } from "./pico-bridge";
-import { buttonNotes as computeButtonNotes } from "./scales";
+import {
+  buttonNotes as computeButtonNotes,
+  sectionButtonNotes,
+} from "./scales";
 
 const PAGE_IDS = new Set(["perform", "instrument", "team"]);
 
@@ -113,7 +116,15 @@ function App() {
   // leave room for a second layout later.
   const [spread, setSpread] = useState("steps");
 
-  const picoNotes = computeButtonNotes(root, octave);
+  // The tuning circle currently in force, reported by SongPlayer as the
+  // backing track crosses its section boundaries. While set, it overrides
+  // the key/octave selectors: the keyboard shows the circle's fifteen keys
+  // and the buttons take its lowest twelve. Null outside playback.
+  const [songSection, setSongSection] = useState(null);
+
+  const picoNotes = songSection
+    ? sectionButtonNotes(songSection.scale)
+    : computeButtonNotes(root, octave);
 
   // A board plugged into ANOTHER computer, reaching us through the mirror.
   // Kept apart from picoConnected, which means "this browser owns the port".
@@ -689,6 +700,7 @@ function App() {
           {page === "perform" && (
             <SongPlayer
               onProgress={setSongProgress}
+              onSectionChange={setSongSection}
             />
           )}
 
@@ -714,6 +726,12 @@ function App() {
               }
               buttonNotes={
                 picoNotes
+              }
+              sectionNotes={
+                songSection?.scale ?? null
+              }
+              sectionTitle={
+                songSection?.title ?? null
               }
             />
 

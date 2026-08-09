@@ -1146,6 +1146,48 @@ a.linkedin-link:hover {
   letter-spacing: 1px;
 }
 
+/* ============================================================
+   Song sections - the hand-drawn tuning circles
+   ============================================================ */
+
+/* Which circle is in force right now, shown in the transport and
+   above the keyboard while playback owns the tuning */
+.section-chip {
+  padding: 4px 10px;
+
+  font-size: 11px;
+  letter-spacing: 0.6px;
+  white-space: nowrap;
+
+  color: rgba(200, 215, 255, 0.95);
+  background: rgba(91, 140, 255, 0.14);
+  border: 1px solid rgba(91, 140, 255, 0.4);
+  border-radius: 999px;
+}
+
+/* Where the next circle takes over, marked on the progress bar.
+   Kept inside the bar: progress-track clips overflow. */
+.progress-mark {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+
+  width: 2px;
+
+  background: rgba(255, 255, 255, 0.55);
+}
+
+/* progress-mark needs a positioning context on the bar */
+.progress-track {
+  position: relative;
+}
+
+/* Selectors sit out the song while a section owns the tuning */
+.scale-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
 .music-panel input[type="range"] {
   width: 90px;
 }
