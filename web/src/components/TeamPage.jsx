@@ -48,7 +48,7 @@ function TeamPage({ onBack }) {
           </button>
 
           <h1>
-            Star Forged
+            Meet the Team
           </h1>
         </header>
       )}
@@ -60,7 +60,7 @@ function TeamPage({ onBack }) {
           </p>
 
           <h2>
-            Meet the Team
+            Star Forged
           </h2>
 
           <p>
@@ -87,12 +87,9 @@ function TeamPage({ onBack }) {
 
         <section className="members-section">
           <div className="section-heading">
-            <p className="team-label">
-              THE CREW
-            </p>
 
             <h2>
-              Our Team
+              THE CREW
             </h2>
           </div>
 

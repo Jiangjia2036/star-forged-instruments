@@ -61,14 +61,35 @@ The volume input is a voltage divider feeding ADC1:
 
 ## Flex sensor (alien sound effect)
 
-A flex strip is a resistor that changes value as it bends, so it needs a
-fixed resistor to become a voltage the ADC can read:
+The strip is an **Adafruit 1070** (Spectra Symbol, 78 mm): about **25 kΩ
+flat, rising to about 100 kΩ fully flexed**. A resistor changes it from a
+resistance into a voltage the ADC can read:
 
 ```
    3V3 ───── flex strip ─────┬───── GP26 (ADC0)
                              │
-                      10 kΩ ─┴───── GND
+                 ~3.9 kΩ ────┴───── GND
 ```
+
+Note the direction: with the strip on the high side, **bending lowers the
+reading**. The trigger measures distance travelled from rest, so it does not
+care which way — but it matters when reading `flex=` during calibration.
+
+### Choosing the resistor
+
+The reading spans the widest range when the fixed resistor is the geometric
+mean of the strip's two extremes, √(25 kΩ × 100 kΩ) ≈ **50 kΩ**:
+
+| Resistor | bent | flat | usable span |
+| -------- | ---- | ---- | ----------- |
+| ~3.9 kΩ (what the calibration implies is fitted) | 2460 | 8844 | 6384 counts, 9.7% of range |
+| 47 kΩ | 20953 | 42780 | 21826 counts, 33.3% of range |
+
+The current value works — the trigger threshold lands 140 ADC steps above
+the noise floor, and the RP2350's ADC only resolves 16-count steps anyway.
+Swapping to 47 kΩ would roughly triple the resolution, which is worth doing
+if the trigger ever feels imprecise. Recalibrate `FLEX_RAW_MIN`/`MAX` after
+changing it. Either way the strip dissipates well under a milliwatt.
 
 Bending the strip plays `FLEX_SOUND` (`alien.wav`) out of the instrument's
 own speaker, through the mixer's second voice — so it layers over whatever
@@ -99,9 +120,13 @@ no downmixer, so a stereo file is rejected with `TRACK_ERROR_format_...`.
 `PicoCode/audio/alien.wav` is the converted mono version of the original
 stereo download.
 
-**Calibrate if a normal bend does not reach the trigger.** The defaults in
-`config.py` (`FLEX_RAW_MIN = 2368`, `FLEX_RAW_MAX = 8548`) came from the
-older build and depend on the exact strip and resistor. Set
+**The calibration in `config.py` is already correct for this build.**
+`FLEX_RAW_MIN = 2368` and `FLEX_RAW_MAX = 8548` match what an Adafruit 1070
+produces through a ~3.9 kΩ divider (predicted 2460 and 8844, within 4%),
+so they are measured values rather than stale guesses — leave them alone
+unless the hardware changes.
+
+Recalibrate only after swapping the strip or the resistor: set
 `STATUS_BROADCAST_S = 2.0`, watch the `flex=` field in the browser console
 while bending fully each way, and put the two extremes into those constants.
 

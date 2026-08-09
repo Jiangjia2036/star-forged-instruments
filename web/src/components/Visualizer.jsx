@@ -357,6 +357,8 @@ function Visualizer({
       false;
 
     let animationFrameId;
+    let lastFrameTime = 0;
+    let smoothedHeld = 0;
 
     function animate() {
       animationFrameId =
@@ -366,6 +368,14 @@ function Visualizer({
 
       const t =
         clock.getElapsedTime();
+
+      // Convert the old 60-FPS increments into elapsed-time increments. A
+      // mirror running at a different refresh rate now moves at the same
+      // speed as the host instead of spinning faster or stuttering.
+      const frameSeconds =
+        Math.min(Math.max(t - lastFrameTime, 0), 0.05);
+      const frameScale = frameSeconds * 60;
+      lastFrameTime = t;
 
       let rms = 0;
 
@@ -394,21 +404,30 @@ function Visualizer({
           );
       }
 
-      const held =
-        notesRef.current.length;
+
+      // Held notes on the instrument, so the scene reacts even though the
+      // Pico's audio never reaches the browser
+      const heldTarget = notesRef.current.length;
+      const heldBlend = 1 - Math.exp(-frameSeconds * 20);
+      smoothedHeld += (heldTarget - smoothedHeld) * heldBlend;
+      const held = smoothedHeld;
+
 
       const starSpeed =
         0.0005 +
         rms * 0.003 +
         held * 0.0016;
 
-      starGroup.rotation.y +=
-        starSpeed;
 
-      starGroup.rotation.x +=
-        0.0002 +
-        rms * 0.001 +
-        held * 0.0006;
+      stars.rotation.y +=
+        starSpeed * frameScale;
+
+      stars.rotation.x +=
+        (0.0002 +
+          rms * 0.001 +
+          held * 0.0006) *
+        frameScale;
+
 
       if (
         photoStarRef.current
@@ -486,7 +505,7 @@ function Visualizer({
             0.4;
 
           ufo.rotation.y +=
-            0.006;
+            0.006 * frameScale;
 
           ufo.rotation.z =
             Math.sin(
@@ -562,10 +581,12 @@ function Visualizer({
               eased * 0.2;
 
             ufo.rotation.y +=
-              0.02;
+              0.02 * frameScale;
 
-            starGroup.rotation.y +=
-              0.002;
+
+            stars.rotation.y +=
+              0.002 * frameScale;
+
 
             if (
               progress >= 1
@@ -623,10 +644,12 @@ function Visualizer({
               ) * 0.08;
 
             ufo.rotation.y +=
-              0.02;
+              0.02 * frameScale;
 
-            starGroup.rotation.y +=
-              0.002;
+
+            stars.rotation.y +=
+              0.002 * frameScale;
+
 
             if (
               progress >= 1
@@ -662,15 +685,15 @@ function Visualizer({
             0.45;
 
           ufo.rotation.y +=
-            0.002;
+            0.002 * frameScale;
         }
 
         else {
           const audioMovement =
             rms * 2 +
-            (held > 0
-              ? 0.45
-              : 0);
+
+            Math.min(1, held) * 0.45;
+
 
           ufo.position.y =
             Math.sin(
@@ -680,7 +703,7 @@ function Visualizer({
             audioMovement;
 
           ufo.rotation.x *=
-            0.95;
+            Math.pow(0.95, frameScale);
 
           ufo.rotation.z =
             Math.sin(
@@ -688,9 +711,10 @@ function Visualizer({
             ) * 0.06;
 
           ufo.rotation.y +=
-            0.002 +
-            rms * 0.01 +
-            held * 0.02;
+            (0.002 +
+              rms * 0.01 +
+              held * 0.02) *
+            frameScale;
 
           const color =
             new THREE.Color();
@@ -706,6 +730,9 @@ function Visualizer({
             0.85,
             0.55
           );
+
+          const colorBlend =
+            1 - Math.pow(0.92, frameScale);
 
           ufo.traverse(
             (child) => {
@@ -725,7 +752,7 @@ function Visualizer({
                       ) {
                         material.color.lerp(
                           color,
-                          0.08
+                          colorBlend
                         );
                       }
                     }
@@ -736,7 +763,7 @@ function Visualizer({
                   ) {
                     child.material.color.lerp(
                       color,
-                      0.08
+                      colorBlend
                     );
                   }
                 }
