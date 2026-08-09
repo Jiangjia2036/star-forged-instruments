@@ -19,7 +19,7 @@ import audiobusio
 import board
 import synthio
 
-SAMPLE_RATE = 22050
+SAMPLE_RATE = 44100
 
 # Well under full scale, so nothing can clip no matter what
 LEVEL = 0.3

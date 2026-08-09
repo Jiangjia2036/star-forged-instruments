@@ -1,15 +1,15 @@
-"""The instrument's voice, built on synthio.
+"""Polyphonic synthio engine with a clean sine default and optional effects."""
 
-Everything audible lives here: notes, envelopes, timbres, vibrato, tremolo,
-the wah filter and the echo. synthio renders it all in C, which is what
-makes chords clean - no Python runs per sample.
-"""
+import array
 
 import synthio
 
 import config
 from tuning import note_to_freq
 from waveforms import WAVES
+
+
+_GAIN_RAMP = array.array("h", (0, 32767))
 
 
 def _envelope(release_s):
@@ -28,41 +28,19 @@ class SynthEngine:
             sample_rate=config.SAMPLE_RATE,
             channel_count=1,
         )
-
         self.note_names = list(config.DEFAULT_NOTES)
 
-        # One live Note object per button while it sounds
-        self._sounding = {}
+        # index -> (Note, gain ramp, tremolo LFO, vibrato LFO)
+        self._voices = {}
+        self._volume = 1.0
+        self.sustain = False
 
         self.wave_name = "SINE"
         self.vibrato_depth = 0
         self.tremolo_depth = 0
-        self.sustain = False
 
         self._short_env = _envelope(config.RELEASE_S)
         self._long_env = _envelope(config.PEDAL_RELEASE_S)
-
-        # Wah filter, shared by every note so the flex sensor sweeps them all
-        # together. synthio.Biquad takes a FilterMode and lets frequency be
-        # changed live, which is what makes the sweep possible.
-        self._filter = None
-        self._filter_hz = config.FILTER_HZ_MAX
-
-        if not config.WAH_ENABLED:
-            return
-
-        try:
-            self._filter = synthio.Biquad(
-                synthio.FilterMode.LOW_PASS,
-                frequency=self._filter_hz,
-                Q=config.FILTER_Q,
-            )
-        except (AttributeError, TypeError) as err:
-            # Older builds spell this differently; the instrument still plays,
-            # it just loses the wah sweep.
-            print("Wah filter unavailable:", err)
-
-    # ---- what the mixer should play ----
 
     @property
     def source(self):
@@ -70,87 +48,124 @@ class SynthEngine:
 
     @property
     def held_note_count(self):
-        """Number of keys/commands that are still being held."""
-        return len(self._sounding)
+        return len(self._voices)
 
-    # ---- notes ----
+    def _level_per_note(self):
+        count = len(self._voices)
+        if count <= 0:
+            return 0.0
+        if count == 1:
+            return config.SINGLE_NOTE_LEVEL * self._volume
+        return config.CHORD_TOTAL_LEVEL * self._volume / count
 
-    def note_on(self, index):
-        if index in self._sounding:
-            return
+    def _rebalance(self):
+        target = self._level_per_note()
+        for _note, gain, _tremolo, _vibrato in self._voices.values():
+            current = gain.value
+            gain.offset = current
+            gain.scale = target - current
+            gain.retrigger()
 
-        if index >= len(self.note_names):
-            return
-
-        freq = note_to_freq(self.note_names[index])
-        if freq is None:
-            return
-
-        note = synthio.Note(
-            frequency=freq,
-            waveform=WAVES[self.wave_name],
-            envelope=self._short_env,
+    def _new_tremolo(self):
+        depth = self.tremolo_depth / 100.0
+        return synthio.LFO(
+            rate=config.TREMOLO_RATE_HZ,
+            scale=depth / 2.0,
+            offset=1.0 - depth / 2.0,
         )
 
-        if self._filter is not None:
-            note.filter = self._filter
+    def _new_vibrato(self):
+        scale = (
+            self.vibrato_depth
+            / 100.0
+            * (config.VIBRATO_SEMITONES / 12.0)
+        )
+        return synthio.LFO(rate=config.VIBRATO_RATE_HZ, scale=scale)
 
-        if self.vibrato_depth:
-            note.bend = synthio.LFO(
-                rate=config.VIBRATO_RATE_HZ,
-                scale=(self.vibrato_depth / 100.0)
-                * (config.VIBRATO_SEMITONES / 12.0),
-            )
+    def note_on(self, index):
+        if index in self._voices or index >= len(self.note_names):
+            return
 
-        if self.tremolo_depth:
-            depth = self.tremolo_depth / 100.0
-            note.amplitude = synthio.LFO(
-                rate=config.TREMOLO_RATE_HZ,
-                scale=depth / 2.0,
-                offset=1.0 - depth / 2.0,
-            )
+        frequency = note_to_freq(self.note_names[index])
+        if frequency is None:
+            return
 
-        self._sounding[index] = note
+        gain = synthio.LFO(
+            waveform=_GAIN_RAMP,
+            rate=config.GAIN_RAMP_HZ,
+            scale=0.0,
+            offset=0.0,
+            once=True,
+            interpolate=True,
+        )
+        tremolo = self._new_tremolo()
+        vibrato = self._new_vibrato()
+        amplitude = synthio.Math(
+            synthio.MathOperation.PRODUCT,
+            gain,
+            tremolo,
+            1.0,
+        )
+        note = synthio.Note(
+            frequency=frequency,
+            waveform=WAVES[self.wave_name],
+            envelope=self._short_env,
+            amplitude=amplitude,
+            bend=vibrato,
+        )
+
+        self._voices[index] = (note, gain, tremolo, vibrato)
+        self._rebalance()
         self.synth.press(note)
 
     def note_off(self, index):
-        note = self._sounding.pop(index, None)
-        if note is None:
+        voice = self._voices.pop(index, None)
+        if voice is None:
             return
 
-        # The damper pedal swaps in the long release at the moment of
-        # letting go, which is exactly what lifting a piano damper does
+        note = voice[0]
         note.envelope = self._long_env if self.sustain else self._short_env
-
         self.synth.release(note)
+        self._rebalance()
 
     def all_notes_off(self):
-        for index in list(self._sounding):
+        for index in list(self._voices):
             self.note_off(index)
 
-    # ---- live controls ----
-
-    def set_filter_hz(self, hz):
-        self._filter_hz = hz
-        if self._filter is not None:
-            self._filter.frequency = hz
+    def set_volume(self, value):
+        value = max(0.0, min(1.0, value))
+        if abs(value - self._volume) < config.VOLUME_CHANGE_MIN:
+            return
+        self._volume = value
+        self._rebalance()
 
     def set_wave(self, name):
-        if name in WAVES:
-            self.wave_name = name
+        if name not in WAVES:
+            return
+        self.wave_name = name
+        for note, _gain, _tremolo, _vibrato in self._voices.values():
+            note.waveform = WAVES[name]
 
     def set_vibrato(self, depth):
         self.vibrato_depth = max(0, min(100, depth))
+        scale = (
+            self.vibrato_depth
+            / 100.0
+            * (config.VIBRATO_SEMITONES / 12.0)
+        )
+        for _note, _gain, _tremolo, vibrato in self._voices.values():
+            vibrato.scale = scale
 
     def set_tremolo(self, depth):
         self.tremolo_depth = max(0, min(100, depth))
+        amount = self.tremolo_depth / 100.0
+        for _note, _gain, tremolo, _vibrato in self._voices.values():
+            tremolo.scale = amount / 2.0
+            tremolo.offset = 1.0 - amount / 2.0
 
     def retune(self, names):
-        """New note names for the buttons. Anything sounding is released so
-        no note is left ringing under a tuning that no longer exists."""
-
-        freqs = [note_to_freq(n) for n in names]
-        if any(f is None for f in freqs):
+        frequencies = [note_to_freq(name) for name in names]
+        if any(frequency is None for frequency in frequencies):
             return False
 
         self.all_notes_off()
