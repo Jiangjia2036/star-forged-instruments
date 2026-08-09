@@ -50,10 +50,20 @@ TRACK_LEVEL = 0.55
 
 # Backing tracks --------------------------------------------------------
 
-# WAV files on the CIRCUITPY drive, played through the mixer's second voice
-# so the speaker carries the song and your playing at once.
-# Must be 16-bit mono at SAMPLE_RATE.
+# Audio files on the CIRCUITPY drive, played through the mixer's second
+# voice so the speaker carries the song and your playing at once.
+#
+# WAV and MP3 both work, but MP3 is what you want: flash is the binding
+# constraint here, and 128 kbps MP3 costs ~1 MB per minute against ~5 MB per
+# minute for 44.1 kHz mono WAV.
+#
+# The mixer does not resample, so a file MUST be mono at SAMPLE_RATE.
+# A mismatch is the usual reason a track plays silently.
 TRACK_DIR = "/audio"
+
+# Used to estimate MP3 duration from file size, since MP3 headers carry no
+# frame count. Accurate for constant bitrate.
+MP3_BITRATE_KBPS = 128
 
 # How often the Pico reports playback position to the website
 POS_REPORT_S = 0.25
