@@ -2,22 +2,74 @@ import * as THREE from "three";
 import { useRef, useEffect } from "react";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
 
-function Visualizer({ analyzer }) {
+function Visualizer({ analyzer, currentPage }) {
   const mountRef = useRef(null);
 
   const sceneRef = useRef(null);
   const cameraRef = useRef(null);
   const rendererRef = useRef(null);
 
+  const currentPageRef = useRef(currentPage);
+
+  const transitionRef = useRef(null);
+
+  const ufoAwayRef = useRef(false);
+
+  const photoStarRef = useRef(null);
+
+  useEffect(() => {
+    if (
+      currentPageRef.current === currentPage
+    ) {
+      return;
+    }
+
+    console.log(
+      "Page changed:",
+      currentPageRef.current,
+      "→",
+      currentPage
+    );
+
+    if (
+      currentPageRef.current === "instrument" &&
+      currentPage === "team"
+    ) {
+      transitionRef.current = {
+        type: "fly-away",
+        startTime: performance.now(),
+      };
+
+      ufoAwayRef.current = false;
+    }
+
+    if (
+      currentPageRef.current === "team" &&
+      currentPage === "instrument"
+    ) {
+      transitionRef.current = {
+        type: "fly-in",
+        startTime: performance.now(),
+      };
+
+      ufoAwayRef.current = true;
+    }
+
+    currentPageRef.current = currentPage;
+  }, [currentPage]);
+
   useEffect(() => {
     const width = window.innerWidth;
     const height = window.innerHeight;
 
-    sceneRef.current = new THREE.Scene();
-    sceneRef.current.background =
+    const scene = new THREE.Scene();
+
+    scene.background =
       new THREE.Color(0x000000);
 
-    cameraRef.current =
+    sceneRef.current = scene;
+
+    const camera =
       new THREE.PerspectiveCamera(
         75,
         width / height,
@@ -25,25 +77,54 @@ function Visualizer({ analyzer }) {
         1000
       );
 
-    cameraRef.current.position.set(0, 1, 6);
+    camera.position.set(
+      0,
+      1,
+      6
+    );
 
-    rendererRef.current =
+    cameraRef.current = camera;
+
+    const renderer =
       new THREE.WebGLRenderer({
         antialias: true,
         alpha: true,
       });
 
-    rendererRef.current.setPixelRatio(
+    renderer.setPixelRatio(
       window.devicePixelRatio
     );
 
-    rendererRef.current.setSize(
+    renderer.setSize(
       width,
       height
     );
 
+    renderer.domElement.style.position =
+      "fixed";
+
+    renderer.domElement.style.top =
+      "0";
+
+    renderer.domElement.style.left =
+      "0";
+
+    renderer.domElement.style.width =
+      "100%";
+
+    renderer.domElement.style.height =
+      "100%";
+
+    renderer.domElement.style.pointerEvents =
+      "none";
+
+    renderer.domElement.style.zIndex =
+      "0";
+
+    rendererRef.current = renderer;
+
     mountRef.current.appendChild(
-      rendererRef.current.domElement
+      renderer.domElement
     );
 
     const ambientLight =
@@ -52,7 +133,7 @@ function Visualizer({ analyzer }) {
         2
       );
 
-    sceneRef.current.add(ambientLight);
+    scene.add(ambientLight);
 
     const directionalLight =
       new THREE.DirectionalLight(
@@ -66,7 +147,7 @@ function Visualizer({ analyzer }) {
       5
     );
 
-    sceneRef.current.add(
+    scene.add(
       directionalLight
     );
 
@@ -97,14 +178,76 @@ function Visualizer({ analyzer }) {
         size: 0.5,
       });
 
-    const stars = new THREE.Points(
-      starGeometry,
-      starMaterial
+    const stars =
+      new THREE.Points(
+        starGeometry,
+        starMaterial
+      );
+
+    scene.add(stars);
+
+    const photoStarLoader =
+      new THREE.TextureLoader();
+
+    photoStarLoader.load(
+      "/photos/JamesTao.png",
+
+      (texture) => {
+        console.log(
+          "James Tao photo loaded!"
+        );
+
+        const photoStarMaterial =
+          new THREE.SpriteMaterial({
+            map: texture,
+            transparent: true,
+            opacity: 0.9,
+            depthWrite: false,
+          });
+
+        const photoStar =
+          new THREE.Sprite(
+            photoStarMaterial
+          );
+
+        photoStar.scale.set(
+          0.8,
+          0.8,
+          1
+        );
+
+        photoStar.position.set(
+          -7,
+          3,
+          -10
+        );
+
+        photoStar.visible = true;
+
+        scene.add(
+          photoStar
+        );
+
+        photoStarRef.current =
+          photoStar;
+
+        console.log(
+          "James Tao star added to scene"
+        );
+      },
+
+      undefined,
+
+      (error) => {
+        console.error(
+          "James Tao photo failed to load:",
+          error
+        );
+      }
     );
 
-    sceneRef.current.add(stars);
-
-    const loader = new GLTFLoader();
+    const loader =
+      new GLTFLoader();
 
     let ufo = null;
 
@@ -126,37 +269,43 @@ function Visualizer({ analyzer }) {
           -30
         );
 
-        sceneRef.current.add(ufo);
+        scene.add(ufo);
+
+        console.log(
+          "UFO loaded"
+        );
       },
 
       undefined,
 
       (error) => {
-        console.log(error);
+        console.log(
+          "UFO loading error:",
+          error
+        );
       }
     );
 
-    const clock = new THREE.Clock();
+    const clock =
+      new THREE.Clock();
 
-    // -------------------------
-    // UFO Entrance Animation
-    // -------------------------
-
-    const entranceDuration = 4.0;
+    const entranceDuration =
+      4.0;
 
     let entranceStartTime = null;
 
     let entranceComplete = false;
 
+    let animationFrameId;
+
     function animate() {
-      requestAnimationFrame(animate);
+      animationFrameId =
+        requestAnimationFrame(
+          animate
+        );
 
       const t =
         clock.getElapsedTime();
-
-      // -------------------------
-      // Audio Analysis
-      // -------------------------
 
       let rms = 0;
 
@@ -181,123 +330,318 @@ function Visualizer({ analyzer }) {
         );
       }
 
-      // -------------------------
-      // Stars
-      // -------------------------
-
       const starSpeed =
-        0.0005 + rms * 0.003;
+        0.0005 +
+        rms * 0.003;
 
       stars.rotation.y +=
         starSpeed;
 
       stars.rotation.x +=
-        0.0002 + rms * 0.001;
+        0.0002 +
+        rms * 0.001;
 
-      // -------------------------
-      // UFO
-      // -------------------------
+      if (photoStarRef.current) {
+        const photoStar =
+          photoStarRef.current;
+
+        photoStar.visible = true;
+
+        photoStar.position.x =
+          Math.sin(
+            t * 0.45
+          ) * 7;
+
+        photoStar.position.y =
+          Math.cos(
+            t * 0.35
+          ) * 3.5;
+
+        photoStar.position.z =
+          -10 +
+          Math.sin(
+            t * 0.22
+          ) * 2;
+
+        photoStar.rotation.z =
+          Math.sin(
+            t * 0.5
+          ) * 0.15;
+
+        const twinkle =
+          0.75 +
+          Math.sin(
+            t * 2.2
+          ) * 0.25;
+
+        photoStar.material.opacity =
+          twinkle;
+      }
 
       if (ufo) {
+        if (
+          !entranceComplete &&
+          transitionRef.current === null
+        ) {
+          if (
+            entranceStartTime ===
+            null
+          ) {
+            entranceStartTime =
+              t;
+          }
 
-        // Start the entrance timer
-        if (entranceStartTime === null) {
-          entranceStartTime = t;
-        }
-
-        const entranceElapsed =
-          t - entranceStartTime;
-
-        // -------------------------
-        // UFO Entrance
-        // -------------------------
-
-        if (!entranceComplete) {
+          const elapsed =
+            t -
+            entranceStartTime;
 
           let progress =
-            entranceElapsed /
+            elapsed /
             entranceDuration;
 
           if (progress >= 1) {
             progress = 1;
-            entranceComplete = true;
+
+            entranceComplete =
+              true;
           }
 
-          const easedProgress =
+          const eased =
             1 -
             Math.pow(
               1 - progress,
               3
             );
 
-          const startZ = -30;
-          const endZ = 0;
+          const startZ =
+            -30;
+
+          const endZ =
+            0;
 
           ufo.position.z =
             startZ +
             (endZ - startZ) *
-              easedProgress;
+              eased;
 
           ufo.position.y =
             Math.sin(
-              progress * Math.PI
-            ) * 0.4;
+              progress *
+                Math.PI
+            ) *
+            0.4;
 
           ufo.rotation.y +=
             0.006;
 
           ufo.rotation.z =
-            Math.sin(t * 0.8) *
+            Math.sin(
+              t * 0.8
+            ) *
             0.08;
         }
 
-        // -------------------------
-        // Normal UFO Mode
-        // -------------------------
+        else if (
+          transitionRef.current
+        ) {
+          const transition =
+            transitionRef.current;
+
+          const elapsed =
+            (performance.now() -
+              transition.startTime) /
+            1000;
+
+          const duration =
+            1.8;
+
+          let progress =
+            elapsed /
+            duration;
+
+          if (progress >= 1) {
+            progress = 1;
+          }
+
+          const eased =
+            1 -
+            Math.pow(
+              1 - progress,
+              3
+            );
+
+          if (
+            transition.type ===
+            "fly-away"
+          ) {
+            const startY =
+              0;
+
+            const endY =
+              8;
+
+            const startZ =
+              0;
+
+            const endZ =
+              1;
+
+            ufo.position.y =
+              startY +
+              (endY - startY) *
+                eased;
+
+            ufo.position.z =
+              startZ +
+              (endZ - startZ) *
+                eased;
+
+            ufo.rotation.x =
+              eased * 0.45;
+
+            ufo.rotation.z =
+              Math.sin(
+                t * 5
+              ) *
+                0.08 +
+              eased * 0.2;
+
+            ufo.rotation.y +=
+              0.02;
+
+            stars.rotation.y +=
+              0.002;
+
+            if (
+              progress >= 1
+            ) {
+              transitionRef.current =
+                null;
+
+              ufoAwayRef.current =
+                true;
+
+              ufo.position.set(
+                0,
+                8,
+                1
+              );
+
+              ufo.rotation.x =
+                0.45;
+            }
+          }
+
+          if (
+            transition.type ===
+            "fly-in"
+          ) {
+            const startY =
+              8;
+
+            const endY =
+              0;
+
+            const startZ =
+              1;
+
+            const endZ =
+              0;
+
+            ufo.position.y =
+              startY +
+              (endY - startY) *
+                eased;
+
+            ufo.position.z =
+              startZ +
+              (endZ - startZ) *
+                eased;
+
+            ufo.rotation.x =
+              (1 - eased) *
+              0.45;
+
+            ufo.rotation.z =
+              Math.sin(
+                t * 5
+              ) *
+              0.08;
+
+            ufo.rotation.y +=
+              0.02;
+
+            stars.rotation.y +=
+              0.002;
+
+            if (
+              progress >= 1
+            ) {
+              transitionRef.current =
+                null;
+
+              ufoAwayRef.current =
+                false;
+
+              ufo.position.set(
+                0,
+                0,
+                0
+              );
+
+              ufo.rotation.x =
+                0;
+            }
+          }
+        }
+
+        else if (
+          ufoAwayRef.current
+        ) {
+          ufo.position.set(
+            0,
+            8,
+            1
+          );
+
+          ufo.rotation.x =
+            0.45;
+
+          ufo.rotation.y +=
+            0.002;
+        }
 
         else {
-
-          // -------------------------
-          // UFO approaching camera
-          // -------------------------
-
-          const targetZ =
-            rms * 3;
-
-          ufo.position.z +=
-            (targetZ - ufo.position.z) *
-            0.08;
-
-          // -------------------------
-          // UFO floating
-          // -------------------------
-
           const audioMovement =
             rms * 2;
 
           ufo.position.y =
-            Math.sin(t * 0.8) * 0.15 +
+            Math.sin(
+              t * 0.8
+            ) *
+              0.15 +
             audioMovement;
 
-          // -------------------------
-          // UFO rotation
-          // -------------------------
+          ufo.rotation.x *=
+            0.95;
 
           ufo.rotation.z =
-            Math.sin(t * 0.6) *
+            Math.sin(
+              t * 0.6
+            ) *
             0.06;
 
           ufo.rotation.y +=
-            0.002 + rms * 0.01;
+            0.002 +
+            rms * 0.01;
 
-          // -------------------------
-          // UFO Color
-          // -------------------------
-
-          const color = new THREE.Color();
+          const color =
+            new THREE.Color();
 
           const hue =
-            (0.55 + rms * 0.8) % 1;
+            (0.55 +
+              rms * 0.8) %
+            1;
 
           color.setHSL(
             hue,
@@ -305,52 +649,52 @@ function Visualizer({ analyzer }) {
             0.55
           );
 
-          ufo.traverse((child) => {
-            if (
-              child.isMesh &&
-              child.material
-            ) {
+          ufo.traverse(
+            (child) => {
               if (
-                Array.isArray(
-                  child.material
-                )
+                child.isMesh &&
+                child.material
               ) {
-                child.material.forEach(
-                  (material) => {
-                    if (material.color) {
-                      material.color.lerp(
-                        color,
-                        0.08
-                      );
-                    }
-                  }
-                );
-              } else {
                 if (
-                  child.material.color
+                  Array.isArray(
+                    child.material
+                  )
                 ) {
-                  child.material.color.lerp(
-                    color,
-                    0.08
+                  child.material.forEach(
+                    (material) => {
+                      if (
+                        material.color
+                      ) {
+                        material.color.lerp(
+                          color,
+                          0.08
+                        );
+                      }
+                    }
                   );
+                } else {
+                  if (
+                    child.material.color
+                  ) {
+                    child.material.color.lerp(
+                      color,
+                      0.08
+                    );
+                  }
                 }
               }
             }
-          });
+          );
         }
       }
 
-      rendererRef.current.render(
-        sceneRef.current,
-        cameraRef.current
+      renderer.render(
+        scene,
+        camera
       );
     }
 
     animate();
-
-    // -------------------------
-    // Resize
-    // -------------------------
 
     function onWindowResize() {
       const width =
@@ -359,12 +703,12 @@ function Visualizer({ analyzer }) {
       const height =
         window.innerHeight;
 
-      cameraRef.current.aspect =
+      camera.aspect =
         width / height;
 
-      cameraRef.current.updateProjectionMatrix();
+      camera.updateProjectionMatrix();
 
-      rendererRef.current.setSize(
+      renderer.setSize(
         width,
         height
       );
@@ -375,28 +719,35 @@ function Visualizer({ analyzer }) {
       onWindowResize
     );
 
-    // -------------------------
-    // Cleanup
-    // -------------------------
-
     return () => {
       window.removeEventListener(
         "resize",
         onWindowResize
       );
 
+      cancelAnimationFrame(
+        animationFrameId
+      );
+
       starGeometry.dispose();
       starMaterial.dispose();
 
-      rendererRef.current.dispose();
+      if (
+        photoStarRef.current
+      ) {
+        photoStarRef.current.material.map?.dispose();
+        photoStarRef.current.material.dispose();
+      }
+
+      renderer.dispose();
 
       if (
         mountRef.current &&
-        rendererRef.current.domElement
+        renderer.domElement
           .parentNode
       ) {
         mountRef.current.removeChild(
-          rendererRef.current.domElement
+          renderer.domElement
         );
       }
     };
@@ -405,7 +756,7 @@ function Visualizer({ analyzer }) {
   return (
     <div
       ref={mountRef}
-      className="visualizer"
+      className="visualizer-background"
     />
   );
 }
