@@ -4,9 +4,9 @@ function TeamPage({ onBack }) {
   const teamMembers = [
     {
       name: "Ethan Summers",
-      role: "Hardware / Pico",
+      role: "Hardware / Pico / Team Leader lol", 
       description:
-        "Hello! I'm Ethan Summers and I am majoring in Mechanical Engineering. I'm a transfer from West Valley Community College from San Jose. ",
+        "Hello! I'm Ethan Summers and I am majoring in Mechanical Engineering. I'm a transfer from West Valley Community College from San Jose. I hope you enjoy our interstellar instrument! ",
       image:
         "/photos/Ethan.jpg",
     },
