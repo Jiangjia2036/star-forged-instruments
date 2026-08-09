@@ -31,6 +31,7 @@ export class PicoBridge {
     // Backoff so a missing backend does not spin the tab
     this.retryMs = 1000;
     this.retryTimer = null;
+    this.pending = [];
   }
 
   connect() {
@@ -51,6 +52,14 @@ export class PicoBridge {
     socket.onopen = () => {
       console.log("Mirror connected");
       this.retryMs = 1000;
+
+      // Preserve serial events emitted while the socket was reconnecting.
+      // App sends an authoritative note snapshot from onStatus immediately
+      // afterward, so even a long outage converges on the current state.
+      const pending = this.pending;
+      this.pending = [];
+      pending.forEach((line) => socket.send(line));
+
       this.onStatus(true);
     };
 
@@ -85,11 +94,16 @@ export class PicoBridge {
   publish(line) {
     if (this.socket && this.socket.readyState === WebSocket.OPEN) {
       this.socket.send(line);
+      return;
     }
+
+    this.pending.push(line);
+    if (this.pending.length > 256) this.pending.shift();
   }
 
   disconnect() {
     this.closed = true;
+    this.pending = [];
 
     if (this.retryTimer) {
       clearTimeout(this.retryTimer);
