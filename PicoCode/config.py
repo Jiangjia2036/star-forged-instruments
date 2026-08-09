@@ -165,58 +165,67 @@ I2S_DATA = board.GP13
 # Button N plays DEFAULT_NOTES[N], so a pin's note is whatever sits at the
 # same index in the note list.
 #
-# Twelve keys: the six original buttons plus the six added on GP0-GP5. The
-# pins are listed in PITCH order rather than pin order, so the note list
-# below reads as a plain rising scale:
+# Thirteen buttons, from the shell diagram in the performance notebook. The
+# instrument's keys sit on a ring of FIFTEEN pitch positions - the same ring
+# the tuning circles draw - but the two lowest positions, just left of the
+# hole, have no buttons. Physical keys occupy positions 3-15, ascending
+# clockwise: up the left side of the egg, over the top, down the right.
 #
-#   index  pin    note   assignment
-#   -----  -----  -----  ----------------------------------------
-#     0    GP16    C4    original button
-#     1    GP17    D4    original button
-#     2    GP18    E4    original button
-#     3    GP12    F4    original button
-#     4    GP11    G4    original button
-#     5    GP0     A4    <- A on GP0
-#     6    GP1     B4    <- B on GP1
-#     7    GP2     C5    <- C on GP2
-#     8    GP3     D5    <- D on GP3
-#     9    GP4     F5    <- F on GP4
-#    10    GP5     E5    <- E on GP5
-#    11    GP10    G5    original button, keeps the G5 it always had
+#   ring pos  index  pin    boot note   place on the shell
+#   --------  -----  -----  ---------   ------------------
+#      1        -     -        -        no button (left of hole)
+#      2        -     -        -        no button
+#      3        0    GP18      E4       lower left
+#      4        1    GP17      F4
+#      5        2    GP9       G4
+#      6        3    GP5       A4
+#      7        4    GP16      B4
+#      8        5    GP12      C5       upper left
+#      9        6    GP11      D5       top of the egg
+#     10        7    GP4       E5
+#     11        8    GP10      F5       upper right
+#     12        9    GP0       G5
+#     13       10    GP2       A5
+#     14       11    GP3       B5
+#     15       12    GP1       C6       lower right, ends at the hole
 #
-# GP4 and GP5 are the one place where pitch does not rise with the sequence.
-# buttonNotes() in web/src/scales.js swaps the same two positions, so a TUNE_
-# from the website lands the same way round as these boot notes.
+# This rewiring supersedes the old layouts entirely - including the old
+# "F on GP4, E on GP5" swap. Position on the shell is the only truth now,
+# and pitch rises strictly with position.
 BUTTON_PINS = (
-    board.GP16,
-    board.GP17,
     board.GP18,
+    board.GP17,
+    board.GP9,
+    board.GP5,
+    board.GP16,
     board.GP12,
     board.GP11,
+    board.GP4,
+    board.GP10,
     board.GP0,
-    board.GP1,
     board.GP2,
     board.GP3,
-    board.GP4,
-    board.GP5,
-    board.GP10,
+    board.GP1,
 )
 ECHO_SWITCH_PIN = board.GP19       # retained for wiring compatibility
 SUSTAIN_SWITCH_PIN = board.GP20
 VOLUME_PIN = board.A1              # GP27
 FLEX_PIN = board.A0                # GP26
 
-# One continuous scale across all twelve keys, C4 up to G5, in BUTTON_PINS
-# order. F and E are swapped at indices 9 and 10 to match GP4 and GP5.
+# Boot notes: ring positions 3-15 of a C major ring that starts at C4 - the
+# same thirteen the website assigns for C when nothing is playing. C4 and D4
+# belong to the buttonless positions 1-2, so they are not here.
+#
+# "-" is a rest: a button tuned to it stays silent. The website uses rests
+# during song sections for keys whose notes are crossed off in the notebook.
 #
 # Only what the board boots with: the website retunes it with TUNE_ as soon
 # as it connects, from buttonNotes() in web/src/scales.js. Keep the two in
 # step or the buttons change note the moment the site connects.
 DEFAULT_NOTES = [
-    "C4", "D4", "E4", "F4", "G4",
-    "A4", "B4", "C5", "D5",
-    "F5", "E5",
-    "G5",
+    "E4", "F4", "G4", "A4", "B4",
+    "C5", "D5", "E5", "F5", "G5",
+    "A5", "B5", "C6",
 ]
 
 

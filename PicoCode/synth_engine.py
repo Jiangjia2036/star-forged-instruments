@@ -219,9 +219,13 @@ class SynthEngine:
             tremolo.offset = 1.0 - amount / 2.0
 
     def retune(self, names):
-        frequencies = [note_to_freq(name) for name in names]
-        if any(frequency is None for frequency in frequencies):
-            return False
+        # "-" is a rest: the button exists but plays nothing. The website
+        # sends rests for keys whose notes are crossed off during a song
+        # section. note_on already ignores them, because note_to_freq("-")
+        # is None and unparseable names never press a voice.
+        for name in names:
+            if name != "-" and note_to_freq(name) is None:
+                return False
 
         self.all_notes_off()
         self.note_names = list(names)

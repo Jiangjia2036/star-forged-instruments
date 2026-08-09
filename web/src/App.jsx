@@ -13,6 +13,7 @@ import { PicoBridge } from "./pico-bridge";
 import {
   buttonNotes as computeButtonNotes,
   sectionButtonNotes,
+  sectionVisibleNotes,
 } from "./scales";
 
 const PAGE_IDS = new Set(["perform", "instrument", "team"]);
@@ -130,12 +131,13 @@ function App() {
 
   // The tuning circle currently in force, reported by SongPlayer as the
   // backing track crosses its section boundaries. While set, it overrides
-  // the key/octave selectors: the keyboard shows the circle's fifteen keys
-  // and the buttons take its lowest twelve. Null outside playback.
+  // the key/octave selectors: the keyboard shows the circle's ring with the
+  // crossed-off notes erased, and buttons on erased positions are tuned to
+  // rests so they stay silent. Null outside playback.
   const [songSection, setSongSection] = useState(null);
 
   const picoNotes = songSection
-    ? sectionButtonNotes(songSection.scale)
+    ? sectionButtonNotes(songSection)
     : computeButtonNotes(root, octave);
 
   // A board plugged into ANOTHER computer, reaching us through the mirror.
@@ -741,7 +743,9 @@ function App() {
                 picoNotes
               }
               sectionNotes={
-                songSection?.scale ?? null
+                songSection
+                  ? sectionVisibleNotes(songSection)
+                  : null
               }
               sectionTitle={
                 songSection?.title ?? null

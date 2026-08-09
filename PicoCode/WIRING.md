@@ -6,21 +6,22 @@ Raspberry Pi Pico 2 W (RP2350) running CircuitPython 10.2.1.
 
 | Pin   | Component            | Mode              | Notes |
 | ----- | -------------------- | ----------------- | ----- |
-| GP0   | Note button **A**    | Input, pull-up    | A4 in the key of C |
-| GP1   | Note button **B**    | Input, pull-up    | B4 in the key of C |
-| GP2   | Note button **C**    | Input, pull-up    | C5 in the key of C |
-| GP3   | Note button **D**    | Input, pull-up    | D5 in the key of C |
-| GP4   | Note button **F**    | Input, pull-up    | F5 in the key of C |
-| GP5   | Note button **E**    | Input, pull-up    | E5 in the key of C |
-| GP10  | Note button          | Input, pull-up    | G5 — top of the range |
-| GP11  | Note button          | Input, pull-up    | G4 in the key of C |
-| GP12  | Note button          | Input, pull-up    | F4 in the key of C |
+| GP0   | Note button          | Input, pull-up    | Ring position 12 |
+| GP1   | Note button          | Input, pull-up    | Ring position 15 — highest, lower right |
+| GP2   | Note button          | Input, pull-up    | Ring position 13 |
+| GP3   | Note button          | Input, pull-up    | Ring position 14 |
+| GP4   | Note button          | Input, pull-up    | Ring position 10 |
+| GP5   | Note button          | Input, pull-up    | Ring position 6 |
+| GP9   | Note button          | Input, pull-up    | Ring position 5 |
+| GP10  | Note button          | Input, pull-up    | Ring position 11 |
+| GP11  | Note button          | Input, pull-up    | Ring position 9 — top of the egg |
+| GP12  | Note button          | Input, pull-up    | Ring position 8 |
 | GP13  | I2S amp `DIN`        | I2S TX data       | Audio out |
 | GP14  | I2S amp `BCLK`       | I2S bit clock     | |
 | GP15  | I2S amp `LRC`        | I2S word select   | |
-| GP16  | Note button          | Input, pull-up    | C4 — bottom of the range |
-| GP17  | Note button          | Input, pull-up    | D4 in the key of C |
-| GP18  | Note button          | Input, pull-up    | E4 in the key of C |
+| GP16  | Note button          | Input, pull-up    | Ring position 7 |
+| GP17  | Note button          | Input, pull-up    | Ring position 4 |
+| GP18  | Note button          | Input, pull-up    | Ring position 3 — lowest button |
 | GP19  | Echo switch          | Input, pull-up    | Toggles delay line |
 | GP20  | **Sustain pedal**    | Input, pull-up    | Damper — released keys ring out |
 | GP26  | Flex sensor          | ADC0              | Fires the alien sound effect |
@@ -28,61 +29,62 @@ Raspberry Pi Pico 2 W (RP2350) running CircuitPython 10.2.1.
 | GND   | Common ground        | —                 | Shared by every switch and the amp |
 | 3V3   | Sensor supply        | —                 | Flex divider and pot high side |
 
-No GPIO is used twice. GP6–GP9 and GP21–GP22 remain free.
+No GPIO is used twice. GP6–GP8 and GP21–GP22 remain free.
 
-### The twelve keys
+### The ring of thirteen keys
 
-Twelve buttons play one continuous scale, **C4 up to G5** in the key of C:
+The shell is a ring of **fifteen pitch positions** — the same fifteen the
+notebook's tuning circles draw. The two lowest positions, just left of the
+hole at the bottom, have **no buttons**; the thirteen keys occupy positions
+3–15, pitch ascending clockwise: up the left side of the egg, over the top,
+down the right side, ending just right of the hole.
 
-| Order | Pin | Note | |
-| ----- | --- | ---- | --- |
-| 1 | GP16 | C4 | |
-| 2 | GP17 | D4 | |
-| 3 | GP18 | E4 | |
-| 4 | GP12 | F4 | |
-| 5 | GP11 | G4 | |
-| 6 | GP0 | A4 | **A** |
-| 7 | GP1 | B4 | **B** |
-| 8 | GP2 | C5 | **C** |
-| 9 | GP3 | D5 | **D** |
-| 10 | GP4 | F5 | **F** |
-| 11 | GP5 | E5 | **E** |
-| 12 | GP10 | G5 | |
+| Ring pos | Pin | Boot note (key of C) |
+| -------- | ---- | -------------------- |
+| 1 | — | *(C4 — no button)* |
+| 2 | — | *(D4 — no button)* |
+| 3 | GP18 | E4 |
+| 4 | GP17 | F4 |
+| 5 | GP9 | G4 |
+| 6 | GP5 | A4 |
+| 7 | GP16 | B4 |
+| 8 | GP12 | C5 |
+| 9 | GP11 | D5 |
+| 10 | GP4 | E5 |
+| 11 | GP10 | F5 |
+| 12 | GP0 | G5 |
+| 13 | GP2 | A5 |
+| 14 | GP3 | B5 |
+| 15 | GP1 | C6 |
 
 A button's note comes from its *position in* `BUTTON_PINS` — `keypad.Keys`
-reports the index and the engine plays `note_names[index]`. So `BUTTON_PINS`
-is written in **pitch order, not pin order**, which lets the note list read
-as a plain rising scale.
+reports the index and the engine plays `note_names[index]`. `BUTTON_PINS` is
+written in **ring order (pitch order), not pin order**, so the note lists
+read as plain rising scales. This rewiring supersedes every earlier layout,
+including the old "F on GP4, E on GP5" swap — position on the shell is the
+only truth now.
 
-Positions 10 and 11 are the one place pitch does not rise, because the board
-has F assigned to GP4 and E to GP5:
+### Rests: buttons that stay silent
 
-```python
-BUTTON_PINS   = (..., GP3,  GP4,  GP5,  GP10)
-DEFAULT_NOTES = [..., "D5", "F5", "E5", "G5"]
-                             ^^^   ^^^
-```
+A note name of `-` in a tuning is a **rest**: the button exists but plays
+nothing while that tuning is active. The website uses rests during song
+sections for the notes crossed off in the notebook — the keyboard erases
+those keys from the screen, and the matching physical buttons go quiet, so
+the performer cannot hit a note the song does not want.
 
 **Two places must agree.** `DEFAULT_NOTES` in `config.py`, and
 `buttonNotes()` in `web/src/scales.js`. If they disagree the buttons change
 note the moment the website connects and retunes the board — the boot notes
 are only what the board plays before that.
 
-### Only one layout now
-
-The `chord` and `wide` spreads are gone. They existed to make six buttons
-useful by skipping scale degrees, since a triad reaches further than six
-adjacent notes. Twelve buttons already cover a full scale, and a skipping
-layout across twelve keys would climb past 2 kHz, where this speaker and the
-`TONE_HZ` filter give up. Use the octave +/- control to move the range.
-
 ### Adding or moving a button
 
-Two edits in `config.py`: its pin in `BUTTON_PINS`, and a note name at the
-same index in `DEFAULT_NOTES`. Then match the count in every branch of
-`buttonNotes()` in `web/src/scales.js` — the Pico rejects a `TUNE_` command
-whose note count differs from its button count, and the site retunes the
-board on connect, so a mismatch silently leaves the board on its boot notes.
+Two edits in `config.py`: its pin at the right ring position in
+`BUTTON_PINS`, and a note name at the same index in `DEFAULT_NOTES`. Then
+match the count in `buttonNotes()` in `web/src/scales.js` — the Pico rejects
+a `TUNE_` command whose note count differs from its button count, and the
+site retunes the board on connect, so a mismatch silently leaves the board
+on its boot notes.
 
 ## Switches and buttons
 

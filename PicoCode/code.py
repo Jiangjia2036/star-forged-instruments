@@ -180,6 +180,11 @@ while True:
     for index, pressed in inputs.button_events():
         name = engine.note_names[index] if index < len(engine.note_names) else "?"
 
+        # A rested button is silent for this section: no sound, and no
+        # NOTE_ line either - the website has nothing to light up for it.
+        if name == "-":
+            continue
+
         if pressed:
             engine.note_on(index)
             link.send("NOTE_%s_ON" % name)
