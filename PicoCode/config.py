@@ -68,7 +68,7 @@ POS_REPORT_S = 0.25
 # notes sound smooth together.
 #
 # Lower this if chords still sound harsh; raise it if the tone gets muffled.
-TONE_HZ = 3000 # change to 3000 or lower if it sounds harsh
+TONE_HZ = 2000 # change to 3000 or lower if it sounds harsh
 TONE_Q = 0.707
 
 # Gain changes ramp inside synthio instead of jumping and creating a click.
@@ -153,3 +153,11 @@ VOL_REPORT_S = 0.1
 # re-triggering a gain rebalance and to spam the serial link with VOL_
 # messages that the website does not need.
 VOL_SMOOTHING = 0.08
+
+
+# Diagnostics ------------------------------------------------------------
+
+# Seconds between automatic STATUS lines. The website logs everything it
+# receives, so this makes the real levels visible in the browser console
+# while the browser is the thing connected. Set to 0 to switch off.
+STATUS_BROADCAST_S = 2.0

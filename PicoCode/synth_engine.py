@@ -2,6 +2,8 @@
 
 import array
 
+import math
+
 import synthio
 
 import config
@@ -56,7 +58,18 @@ class SynthEngine:
             return 0.0
         if count == 1:
             return config.SINGLE_NOTE_LEVEL * self._volume
-        return config.CHORD_TOTAL_LEVEL * self._volume / count
+
+        # Divide by sqrt(N), not N.
+        #
+        # Two tones at different frequencies only reach their combined peak
+        # in the brief moments their waveforms line up; on average they sum
+        # as sqrt(N), not N. Dividing by N assumed the worst case at all
+        # times and cost 6 dB the instant a second key went down, which is
+        # what made chords sound like the volume had collapsed.
+        #
+        # The soft limiter last in the chain catches the rare peak
+        # alignment, so this no longer has to be pessimistic.
+        return config.CHORD_TOTAL_LEVEL * self._volume / math.sqrt(count)
 
     def _rebalance(self):
         target = self._level_per_note()
