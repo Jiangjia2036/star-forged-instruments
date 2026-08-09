@@ -1,71 +1,31 @@
-"""Star Forged Instruments - CircuitPython entry point.
+"""Star Forged Instruments - CircuitPython synthio firmware.
 
-Wiring diagram of the modules:
+Live audio path:
 
-    inputs.py ──── buttons / switches / sensors
-        │
-    code.py ────── this file: the event loop, nothing else
-        │
-    serial_link.py ─ USB protocol to the website
-    synth_engine.py ─ notes and effects (synthio, renders in C)
-    track_player.py ─ WAV backing tracks
-    config.py ────── every pin and tuning constant
+    buttons -> synthio -> [chorus] -> [echo] -> [reverb] -> limiter -> I2S
 
-The audio chain: synth ─→ (echo) ─→ mixer voice 0
-                 WAV file ─────────→ mixer voice 1 ─→ I2S amp
+Every stage is a CircuitPython DSP block running in compiled code. Optional
+stages are inserted only while enabled; the limiter is always present and
+always last. Physical button messages still go to the website for visuals,
+while sound stays on the Pico.
 """
 
 import time
 
 import audiobusio
-import audiomixer
 
 import config
+from effects import EffectChain
 from inputs import Inputs
 from serial_link import SerialLink
 from synth_engine import SynthEngine
 from track_player import TrackPlayer
 from waveforms import WAVE_NAMES
 
-# Echo is a supported effect on RP2350 builds; degrade gracefully elsewhere
-try:
-    import audiodelays
-
-    _HAS_ECHO = True
-except ImportError:
-    _HAS_ECHO = False
-
-
-# ------------------------------------------------------------
-# Audio chain
-# ------------------------------------------------------------
 
 engine = SynthEngine()
-
-mixer = audiomixer.Mixer(
-    voice_count=2,
-    sample_rate=config.SAMPLE_RATE,
-    channel_count=1,
-    bits_per_sample=16,
-    samples_signed=True,
-    buffer_size=4096,
-)
-
-if _HAS_ECHO and config.ECHO_ENABLED:
-    echo = audiodelays.Echo(
-        max_delay_ms=config.ECHO_DELAY_MS,
-        delay_ms=config.ECHO_DELAY_MS,
-        decay=config.ECHO_DECAY,
-        mix=0.0,  # dry until the switch or the site turns it on
-        buffer_size=1024,
-        channel_count=1,
-        sample_rate=config.SAMPLE_RATE,
-    )
-    echo.play(engine.source)
-    synth_source = echo
-else:
-    echo = None
-    synth_source = engine.source
+inputs = Inputs()
+link = SerialLink()
 
 i2s = audiobusio.I2SOut(
     bit_clock=config.I2S_BCLK,
@@ -73,16 +33,18 @@ i2s = audiobusio.I2SOut(
     data=config.I2S_DATA,
 )
 
-i2s.play(mixer)
-mixer.voice[0].play(synth_source)
+# Builds and rewires the whole chain, and plays it into the amplifier
+chain = EffectChain(engine.source, i2s)
 
-inputs = Inputs()
-link = SerialLink()
-tracks = TrackPlayer(mixer.voice[1])
+# Backing tracks share the output through the mixer's second voice
+tracks = TrackPlayer(chain.track_voice)
 
-# Echo can come from the physical switch or the website; either engages it
-web_echo = False
 web_sustain = False
+web_echo = False
+
+
+def apply_sustain():
+    engine.sustain = inputs.sustain_on or web_sustain
 
 
 def echo_active():
@@ -90,17 +52,8 @@ def echo_active():
 
 
 def apply_echo():
-    if echo is not None:
-        echo.mix = config.ECHO_MIX if echo_active() else 0.0
+    chain.set_echo(echo_active())
 
-
-def apply_sustain():
-    engine.sustain = inputs.sustain_on or web_sustain
-
-
-# ------------------------------------------------------------
-# Serial commands from the website
-# ------------------------------------------------------------
 
 def handle(line):
     global web_echo, web_sustain
@@ -128,6 +81,14 @@ def handle(line):
         if name in WAVE_NAMES:
             engine.set_wave(name)
             link.send("FX_WAVE_%s_OK" % name)
+
+    elif line.startswith("FX_CHORUS_"):
+        chain.set_chorus(line[10:] == "ON")
+        link.send("FX_CHORUS_%s_OK" % ("ON" if chain.chorus_on else "OFF"))
+
+    elif line.startswith("FX_REVERB_"):
+        chain.set_reverb(line[10:] == "ON")
+        link.send("FX_REVERB_%s_OK" % ("ON" if chain.reverb_on else "OFF"))
 
     elif line.startswith("FX_VIB_"):
         try:
@@ -158,22 +119,22 @@ def handle(line):
     elif line == "TRACK_STOP":
         tracks.stop(link)
 
+    elif line.startswith("FX_TONE_"):
+        try:
+            chain.set_tone_hz(int(line[8:]))
+            link.send("FX_TONE_OK")
+        except ValueError:
+            pass
 
-# ------------------------------------------------------------
-# Main loop
-# ------------------------------------------------------------
 
 link.send("PICO_READY")
+link.send("AUDIO_LIMITED")
 link.send("TUNED_" + "_".join(engine.note_names))
 
 vol_reported = -1
 last_vol_report = 0.0
-last_filter_update = 0.0
-last_filter_hz = 0.0
-chord_gain = 1.0
 
 while True:
-    # Physical playing
     for index, pressed in inputs.button_events():
         name = engine.note_names[index] if index < len(engine.note_names) else "?"
 
@@ -184,56 +145,28 @@ while True:
             engine.note_off(index)
             link.send("NOTE_%s_OFF" % name)
 
-    # Switches
     for which, _closed in inputs.switch_events():
-        if which == Inputs.SWITCH_ECHO:
-            apply_echo()
-            link.send("EFFECT_ECHO_%s" % ("ON" if echo_active() else "OFF"))
-        else:
+        if which == Inputs.SWITCH_SUSTAIN:
             apply_sustain()
             link.send("SUSTAIN_%s" % ("ON" if engine.sustain else "OFF"))
+        else:
+            apply_echo()
+            link.send("EFFECT_ECHO_%s" % ("ON" if echo_active() else "OFF"))
 
-    # Website commands
     for line in link.poll():
         handle(line)
 
-    # Continuous controls.
-    #
-    # The wah cutoff is updated at ~50 Hz, not on every pass. Changing a
-    # filter's frequency 500 times a second modulates it at audio rate and
-    # puts sidebands around every note, which sounds like buzzing.
     now = time.monotonic()
-
-    if now - last_filter_update >= config.FILTER_UPDATE_S:
-        last_filter_update = now
-        hz = inputs.filter_hz()
-
-        if abs(hz - last_filter_hz) >= config.FILTER_DEADBAND_HZ:
-            last_filter_hz = hz
-            engine.set_filter_hz(hz)
-
     volume = inputs.volume()
-    chord_target = (
-        config.CHORD_LEVEL if engine.held_note_count > 1 else 1.0
-    )
-    chord_gain += (
-        chord_target - chord_gain
-    ) * config.CHORD_GAIN_SMOOTHING
+    chain.set_volume(volume)
 
-    mixer.voice[0].level = volume * config.SYNTH_LEVEL * chord_gain
-    mixer.voice[1].level = volume * config.TRACK_LEVEL
+    tracks.tick(link)
 
-    # Report the knob to the website, deadbanded and rate limited
     if now - last_vol_report >= config.VOL_REPORT_S:
         last_vol_report = now
         pct = int(volume * 100)
-
         if abs(pct - vol_reported) >= config.VOL_DEADBAND:
             vol_reported = pct
             link.send("VOL_%d" % min(100, pct))
 
-    # Track housekeeping
-    tracks.tick(link)
-
-    # Audio renders in C in the background; this loop only handles events
     time.sleep(0.002)

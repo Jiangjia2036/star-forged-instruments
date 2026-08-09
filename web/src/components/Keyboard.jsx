@@ -37,8 +37,8 @@ function Keyboard({
     synth.current.triggerAttack(note);
   };
 
-  const stopNote = () => {
-    synth.current.triggerRelease();
+  const stopNote = (note) => {
+    synth.current.triggerRelease(note);
   };
 
   return (
@@ -110,9 +110,9 @@ function Keyboard({
                   .join(" ")
               }
               onMouseDown={() => startNote(note)}
-              onMouseUp={stopNote}
+              onMouseUp={() => stopNote(note)}
               onMouseLeave={(e) => {
-                if (e.buttons) stopNote();
+                if (e.buttons) stopNote(note);
               }}
             >
               {btn && <span className="key-badge">{btn}</span>}

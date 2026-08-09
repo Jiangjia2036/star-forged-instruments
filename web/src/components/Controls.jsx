@@ -12,20 +12,13 @@ function Controls({
   onToggleSustain,
 }) {
   function handleEffectClick(effect) {
-    if (selectedEffect === effect) {
-      setSelectedEffect("");
-    } else {
-      setSelectedEffect(effect);
-    }
+    setSelectedEffect(selectedEffect === effect ? "" : effect);
   }
 
   return (
     <section className="console">
       <div className="fx-group">
         {EFFECTS.map((effect) => {
-          // Echo also lights when the GP19 switch is thrown, so the button
-          // reflects what the instrument is actually doing rather than only
-          // what was clicked here.
           const lit =
             selectedEffect === effect ||
             (effect === "Echo" && picoEcho);
@@ -44,7 +37,6 @@ function Controls({
 
       <div className="divider" />
 
-      {/* Mirrors the GP20 damper switch. Lit whichever way it was engaged. */}
       <button
         className={sustain ? "fx-btn sustain-btn on" : "fx-btn sustain-btn"}
         onClick={onToggleSustain}
@@ -57,25 +49,19 @@ function Controls({
 
       <div className="slider">
         <span className="label">Depth</span>
-
         <input
           type="range"
           min="0"
           max="100"
           value={effectStrength}
-          onChange={(e) =>
-            setEffectStrength(Number(e.target.value))
-          }
+          onChange={(e) => setEffectStrength(Number(e.target.value))}
         />
       </div>
 
       <div className="divider" />
 
-      {/* Read only. The potentiometer is the only volume control - this bar
-          just follows the knob so the screen always matches the hardware. */}
       <div className="slider">
         <span className="label">Volume</span>
-
         <div
           className="vol-meter"
           title={
@@ -89,7 +75,6 @@ function Controls({
             style={{ width: (picoConnected ? potVolume : 0) + "%" }}
           />
         </div>
-
         <span className="vol-readout">
           {picoConnected ? potVolume + "%" : "--"}
         </span>

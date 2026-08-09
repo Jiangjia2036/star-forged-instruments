@@ -6,6 +6,7 @@ Raspberry Pi Pico 2 W (RP2350) running CircuitPython 10.2.1.
 
 | Pin   | Component            | Mode              | Notes |
 | ----- | -------------------- | ----------------- | ----- |
+| GP12  | Note button 4        | Input, pull-up    | Octave — C5 in the key of C |
 | GP13  | I2S amp `DIN`        | I2S TX data       | Audio out |
 | GP14  | I2S amp `BCLK`       | I2S bit clock     | |
 | GP15  | I2S amp `LRC`        | I2S word select   | |
@@ -14,13 +15,19 @@ Raspberry Pi Pico 2 W (RP2350) running CircuitPython 10.2.1.
 | GP18  | Note button 3        | Input, pull-up    | Fifth — G in the key of C |
 | GP19  | Echo switch          | Input, pull-up    | Toggles delay line |
 | GP20  | **Sustain pedal**    | Input, pull-up    | Damper — released keys ring out |
-| GP26  | Flex sensor          | ADC0              | Wah filter cutoff |
+| GP26  | Unused               | —                  | Reserved for a future sensor |
 | GP27  | Volume potentiometer | ADC1              | Master level |
 | GND   | Common ground        | —                 | Shared by every switch and the amp |
 | 3V3   | Sensor supply        | —                 | Flex divider and pot high side |
 
-No GPIO is used twice, and GP0–GP12 plus GP21–GP22 remain free for the
-remaining note buttons needed to reach a full octave.
+No GPIO is used twice. GP0–GP11 plus GP21–GP22 remain free for the remaining
+note buttons needed to reach a full octave.
+
+Adding another button is two edits: append its pin to `BUTTON_PINS` and a
+note name to `DEFAULT_NOTES`, both in `config.py`. Append rather than insert,
+so the existing buttons keep the notes they already play. Then add a matching
+entry to each branch of `buttonNotes()` in `web/src/scales.js` — the Pico
+rejects a `TUNE_` command whose note count differs from its button count.
 
 ## Switches and buttons
 
@@ -40,26 +47,15 @@ idles at 3.3 V and is pulled to ground when the switch closes.
 On a four-legged tactile switch, the two legs on the *same* side are already
 connected internally. Use legs on opposite sides.
 
-## Analogue sensors
+## Volume potentiometer
 
-Both analogue inputs are voltage dividers feeding an ADC:
-
-```
-   3V3 ───── flex sensor ────┬──── GP26 (ADC0)
-                             │
-                         10 kΩ
-                             │
-                            GND
-```
+The volume input is a voltage divider feeding ADC1:
 
 ```
    3V3 ───── pot end ────────┐
                      wiper ──┴──── GP27 (ADC1)
              pot other end ─────── GND
 ```
-
-The flex divider's calibration constants live in `config.py` as
-`FLEX_RAW_MIN` and `FLEX_RAW_MAX`.
 
 ## I2S amplifier
 
@@ -77,9 +73,9 @@ A MAX98357A-class breakout:
 
 ### The GAIN pin is the answer to "it's too quiet"
 
-Voices sum and the synth has to leave headroom for chords, so a single note
-can never use the full output range. Software cannot recover that — a mixer
-level tops out at 1.0. The amplifier can:
+The direct synthio engine raises a single note while automatically lowering
+each voice in a chord. The amplifier's GAIN pin still controls the final
+analogue gain:
 
 | GAIN pin        | Gain  |
 | --------------- | ----- |
@@ -99,12 +95,10 @@ Audio is configured as mono, signed 16-bit, 22,050 Hz.
 ## Signal flow
 
 ```
-  buttons ─┐
-  switches ├─→ Pico ─→ oscillators ─→ filter ─→ echo ─┐
-  sensors ─┘      │                                   ├─→ volume ─→ I2S ─→ speaker
-                  └─→ WAV from flash ─────────────────┘
-                  │
-                  └─→ USB serial ─→ website (keys light, visuals react)
+  buttons ─────→ Pico ─→ synthio ───────────────→ I2S ─→ speaker
+  sustain ────────┘          └─→ optional echo ──┘
+  volume pot ─────┘
+                 └─→ USB serial ─→ website (keys light, visuals react)
 ```
 
 ## Adding the sustain pedal

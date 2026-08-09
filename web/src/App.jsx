@@ -27,14 +27,11 @@ function App() {
   if (synth.current === null) {
     delay.current = new Tone.FeedbackDelay("8n", 0.4);
     analyzer.current = new Tone.Analyser("waveform", 256);
-    synth.current = new Tone.Synth().connect(delay.current);
+    synth.current = new Tone.PolySynth(Tone.Synth).connect(delay.current);
     delay.current.connect(analyzer.current);
     analyzer.current.toDestination();
   }
 
-  // Level for the browser preview synth only. The instrument's own volume is
-  // set by the potentiometer and never from here.
-  const [volume] = useState(-10);
   const [effectStrength, setEffectStrength] = useState(0);
   const [selectedEffect, setSelectedEffect] = useState("");
 
@@ -48,8 +45,6 @@ function App() {
   // Damper pedal. Either the GP20 switch or the on-screen toggle.
   const [sustain, setSustain] = useState(false);
 
-  // Whether the board currently has echo running, however it was engaged.
-  // Never sent back to the Pico - see the note in handleLine.
   const [picoEcho, setPicoEcho] = useState(false);
 
   // Where the physical volume knob is sitting, 0-100
@@ -131,22 +126,10 @@ function App() {
   }, []);
 
   useEffect(() => {
-    synth.current.volume.value = volume;
-  }, [volume]);
-
-  useEffect(() => {
-    if (selectedEffect === "Echo") {
-      delay.current.wet.value =
-        effectStrength / 100;
-    } else {
-      delay.current.wet.value = 0;
-    }
+    delay.current.wet.value =
+      selectedEffect === "Echo" ? effectStrength / 100 : 0;
   }, [effectStrength, selectedEffect]);
 
-
-  // Effects on the instrument itself. Warp changes the oscillator timbre and
-  // Chorus drives the tremolo, so each effect produces a distinct sound
-  // from the Pico rather than only affecting browser audio.
   useEffect(() => {
     if (!picoConnected) return;
 
@@ -156,7 +139,6 @@ function App() {
     const depth = Math.round(effectStrength);
 
     if (selectedEffect === "Warp") {
-      // saw voice with pitch wobble
       pico.send("FX_WAVE_SAW");
       pico.send("FX_VIB_" + depth);
       pico.send("FX_TREM_0");
@@ -167,7 +149,6 @@ function App() {
       pico.send("FX_TREM_0");
       pico.send("FX_ECHO_ON");
     } else if (selectedEffect === "Chorus") {
-      // square voice with amplitude wobble
       pico.send("FX_WAVE_SQUARE");
       pico.send("FX_VIB_0");
       pico.send("FX_TREM_" + depth);
@@ -179,7 +160,6 @@ function App() {
       pico.send("FX_ECHO_OFF");
     }
   }, [picoConnected, selectedEffect, effectStrength]);
-
 
   // Volume is set by the potentiometer alone. The site only mirrors it, so
   // nothing is sent to the Pico here - see the VOL_ handler in handleLine.

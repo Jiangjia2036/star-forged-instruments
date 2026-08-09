@@ -1,157 +1,148 @@
-"""All tuning knobs and pin assignments in one place.
+"""Configuration for the bare synthio instrument.
 
-Change behaviour here rather than digging through the engine modules.
+The default audio path is deliberately minimal: synthio feeds I2SOut directly.
+There is no mixer, filter, or backing-track stage. Echo is inserted only while
+the Echo control is on and is completely bypassed when it is off.
 """
 
 import board
 
-# ------------------------------------------------------------
-# Audio
-# ------------------------------------------------------------
 
-SAMPLE_RATE = 22050
+# Audio -----------------------------------------------------------------
 
-# Mixer voice levels, 0.0 - 1.0. These balance synth against backing track.
+# A conventional audio rate gives each sine wave more samples per cycle than
+# the previous 22.05 kHz engine while remaining easy for the RP2350 to render.
+SAMPLE_RATE = 44100
+
+# One held note can be loud. For a chord, this is the TOTAL level shared by
+# every held note.
+#
+# The chord budget used to be well under full scale because nothing caught
+# peaks. There is now a real limiter in the chain (see below), so chords can
+# run much closer to full level and let it round the peaks - which is why
+# CHORD_TOTAL_LEVEL is no longer punishing.
+SINGLE_NOTE_LEVEL = 0.90
+CHORD_TOTAL_LEVEL = 0.88
+
+
+# Limiter ---------------------------------------------------------------
+
+# audiofilters.Distortion in CLIP mode with soft_clip is CircuitPython's own
+# soft knee limiter, running in compiled code. It sits last in the chain and
+# rounds peaks rather than chopping them square, which is what made chords
+# sound harsh before.
+#
+# drive stays at 0 because we want limiting, not colouration. Raise it only
+# if you actually want an overdriven tone.
+LIMIT_DRIVE = 0.0
+LIMIT_PRE_GAIN_DB = 0.0
+LIMIT_POST_GAIN_DB = 0.0
+
+# Shared buffer size for every effect stage. Larger is safer against
+# dropouts, smaller is lower latency.
+EFFECT_BUFFER = 1024
+MIXER_BUFFER = 2048
+
+# Mixer voice levels
 SYNTH_LEVEL = 1.0
-TRACK_LEVEL = 0.45
+TRACK_LEVEL = 0.55
 
-# The MAX98357A can run out of analogue output swing before the digital I2S
-# samples clip, especially when its GAIN pin is tied to GND. Ease the synth
-# down only while a chord is held, then ramp smoothly back up for one note.
-# This keeps single notes loud without making two-button chords crackle.
-CHORD_LEVEL = 0.70
-CHORD_GAIN_SMOOTHING = 0.04
 
-# Most notes expected to sound at once.
+# Backing tracks --------------------------------------------------------
+
+# WAV files on the CIRCUITPY drive, played through the mixer's second voice
+# so the speaker carries the song and your playing at once.
+# Must be 16-bit mono at SAMPLE_RATE.
+TRACK_DIR = "/audio"
+
+# How often the Pico reports playback position to the website
+POS_REPORT_S = 0.25
+
+
+# Master tone -----------------------------------------------------------
+
+# A gentle low pass across everything. The instrument's voices are simple
+# waveforms, so almost nothing musical lives in the top octaves - what does
+# live there is aliasing and wave table quantisation, and that is what puts
+# a gritty edge on a chord. Rolling it off is the cheapest way to make two
+# notes sound smooth together.
 #
-# This is the single most important number for how chords sound. synthio
-# sums every sounding note into one 16 bit buffer, and it does NOT limit -
-# if the total exceeds full scale it clips, which is harsh. So the peak of
-# each waveform is full scale divided by this.
-#
-# Raising it makes chords clean but every single note quieter, so set it to
-# the most keys you actually hold down at once, not the number of buttons.
-# With 16 buttons wired, 4 or 5 is realistic; you will never hold all 16.
-# Set to the number of buttons wired, since that is the real ceiling today.
-# At 5 a single note only reached 18% of full scale, which is audibly quiet;
-# at 3 it reaches 31%.
-MAX_POLYPHONY = 3
+# Lower this if chords still sound harsh; raise it if the tone gets muffled.
+TONE_HZ = 5000
+TONE_Q = 0.707
 
-# Leaves a little room under full scale for the envelope attack
-_HEADROOM = 31000
+# Gain changes ramp inside synthio instead of jumping and creating a click.
+GAIN_RAMP_HZ = 40.0
+VOLUME_CHANGE_MIN = 0.015
 
-WAVE_PEAK = _HEADROOM // MAX_POLYPHONY
 
-# NOTE ON LOUDNESS
-#
-# There is no free lunch here in software. Voices sum, synthio does not
-# limit, and a mixer voice level cannot go above 1.0 - so nothing downstream
-# can amplify. A single note is always full scale divided by MAX_POLYPHONY.
-#
-# The real fix for loudness is the amplifier's GAIN pin, which costs nothing
-# and does not eat headroom:
-#     floating          9 dB   (default, what you have now)
-#     100k to GND      12 dB
-#     wired to GND     15 dB   <- +6 dB, doubles the amplitude
-# See PicoCode/WIRING.md.
-
-# ------------------------------------------------------------
-# Pins
-# ------------------------------------------------------------
+# I2S pins ---------------------------------------------------------------
 
 I2S_BCLK = board.GP14
 I2S_LRC = board.GP15
 I2S_DATA = board.GP13
 
-# Note buttons, in order. Button N plays NOTES[N]. Add the next soldered
-# button to this tuple and a name to DEFAULT_NOTES - nothing else changes.
-BUTTON_PINS = (board.GP16, board.GP17, board.GP18)
 
-ECHO_SWITCH_PIN = board.GP19
+# Physical controls -----------------------------------------------------
+
+# Button N plays DEFAULT_NOTES[N], so order here maps to note order.
+# New buttons are appended, which leaves the existing keys on their notes.
+BUTTON_PINS = (board.GP16, board.GP17, board.GP18, board.GP12)
+ECHO_SWITCH_PIN = board.GP19       # retained for wiring compatibility
 SUSTAIN_SWITCH_PIN = board.GP20
+VOLUME_PIN = board.A1              # GP27
 
-FLEX_PIN = board.A0    # GP26
-VOLUME_PIN = board.A1  # GP27
+# Root, third, fifth, then the root an octave up - a full major triad plus
+# the octave, which is enough to play something that sounds finished.
+DEFAULT_NOTES = ["C4", "E4", "G4", "C5"]
 
-# ------------------------------------------------------------
-# Notes
-# ------------------------------------------------------------
 
-# What the wired buttons play. Rewritten live by the website's TUNE command.
-DEFAULT_NOTES = ["C4", "E4", "G4"]
+# Click-free envelope ---------------------------------------------------
 
-# ------------------------------------------------------------
-# Envelope (synthio.Envelope parameters)
-# ------------------------------------------------------------
+ATTACK_S = 0.008
+DECAY_S = 0.045
+SUSTAIN_LEVEL = 0.96
+RELEASE_S = 0.045
+PEDAL_RELEASE_S = 1.5
 
-ATTACK_S = 0.010
-DECAY_S = 0.140
-SUSTAIN_LEVEL = 0.8
-RELEASE_S = 0.120
 
-# Release used instead when the damper pedal is held
-PEDAL_RELEASE_S = 2.6
+# Optional effects ------------------------------------------------------
 
-# ------------------------------------------------------------
-# Effects
-# ------------------------------------------------------------
-
-# Wah filter sweep driven by the flex sensor.
-#
-# Set WAH_ENABLED = False if the flex sensor is not wired. A floating analog
-# pin reads noise, and noise on a filter cutoff is far worse than no filter:
-# it modulates every note and sounds like buzzing.
-WAH_ENABLED = True
-
-FLEX_RAW_MIN = 2368
-FLEX_RAW_MAX = 8548
-FILTER_HZ_MIN = 430
-FILTER_HZ_MAX = 3500
-FILTER_Q = 0.9
-
-# How often the cutoff may be updated, and how far it must move first.
-#
-# The main loop runs ~500 times a second. Pushing a new cutoff that often is
-# not a control change, it is MODULATION at audio rate, and it puts sidebands
-# around every note - which is heard as harshness. 50 Hz updates are far
-# faster than a hand can bend a sensor and cause no such artefacts.
-FILTER_UPDATE_S = 0.02
-FILTER_DEADBAND_HZ = 25
-
-# Smoothing applied to raw ADC reads, 0-1. Lower is smoother and slower.
-ADC_SMOOTHING = 0.06
-
-# Echo effect sits in the signal path even when its mix is zero. Set False to
-# remove it from the chain entirely for A/B testing.
-ECHO_ENABLED = True
-
-# Echo
+# Effects are bypassed when off. Echo is the only object inserted between
+# synthio and I2S, and it is inserted only while enabled.
 ECHO_DELAY_MS = 300
-ECHO_DECAY = 0.5
-ECHO_MIX = 0.5
+ECHO_DECAY = 0.45
+ECHO_MIX = 0.40
 
-# LFO rates
+# A real chorus, from audiodelays. Several detuned copies spread across a
+# short delay - this is what "chorus" actually means, rather than the square
+# wave plus tremolo we were substituting for it.
+CHORUS_MAX_DELAY_MS = 50
+CHORUS_DELAY_MS = 35.0
+CHORUS_VOICES = 3.0
+CHORUS_MIX = 0.5
+
+# Reverb, from audiofreeverb. Worth having on for chords: a little space
+# masks the beating between notes and makes intervals sit together.
+REVERB_ROOMSIZE = 0.55
+REVERB_DAMP = 0.5
+REVERB_MIX = 0.35
+
 VIBRATO_RATE_HZ = 5.5
+VIBRATO_SEMITONES = 1.0
 TREMOLO_RATE_HZ = 5.0
 
-# Full-depth vibrato swing in semitones
-VIBRATO_SEMITONES = 1.0
 
-# ------------------------------------------------------------
-# Volume pot
-# ------------------------------------------------------------
+# Volume reporting ------------------------------------------------------
 
-# Floor so an unwired pot still makes sound; 0 lets the pot fully mute
-VOL_FLOOR = 0.12
-
-# Reporting: percent change needed before telling the website, and the
-# minimum seconds between reports
-VOL_DEADBAND = 2
+# An absent or bottomed-out potentiometer never makes diagnostics entirely
+# silent. A wired pot still covers most of the useful range.
+VOL_FLOOR = 0.15
+VOL_DEADBAND = 3
 VOL_REPORT_S = 0.1
 
-# ------------------------------------------------------------
-# Backing tracks
-# ------------------------------------------------------------
-
-TRACK_DIR = "/audio"
-POS_REPORT_S = 0.25
+# One-pole smoothing on the raw ADC read, 0-1. Lower is smoother.
+# Without this the pot jitters a couple of percent, which is enough to keep
+# re-triggering a gain rebalance and to spam the serial link with VOL_
+# messages that the website does not need.
+VOL_SMOOTHING = 0.08

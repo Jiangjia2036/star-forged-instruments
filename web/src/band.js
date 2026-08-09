@@ -24,14 +24,14 @@ export const MEMBERS = [
   // Leave linkedin empty until a profile URL is ready. The Band page will
   // show a highlighted placeholder instead of creating a broken link.
   {
-    name: "Member One",
+    name: "Grayson Pressutti",
     // role: "Setter",
     // photo: "/images/member1.jpg",
     // bio: "Replace this with a sentence or two about yourself.",
     linkedin: "",
   },
   {
-    name: "Member Two",
+    name: "Ethan Summers",
     // role: "Setter",
     // photo: "/images/member2.jpg",
     // bio: "Replace this with a sentence or two about yourself.",
@@ -45,7 +45,7 @@ export const MEMBERS = [
     linkedin: "",
   },
   {
-    name: "Member",
+    name: "Jason Jiang",
     linkedin: "",
   },
 ];
@@ -86,14 +86,6 @@ export const EFFECTS = [
       "from either the GP19 switch or the website.",
   },
   {
-    name: "Wah",
-    control: "Flex sensor (ADC26)",
-    detail:
-      "A biquad low-pass filter whose cutoff follows how far the strip " +
-      "is bent, sweeping from roughly 430 Hz to 3.5 kHz. Bending the " +
-      "sensor while holding a note gives the classic vowel sweep.",
-  },
-  {
     name: "Tremolo",
     control: "Chorus + Depth slider",
     detail:
@@ -105,8 +97,8 @@ export const EFFECTS = [
     name: "Sustain",
     control: "Damper switch (GP20)",
     detail:
-      "A piano's damper pedal. Holding it swaps the fast 110 ms release for " +
-      "a 2.6 second decay, so lifting a key leaves the note ringing and " +
+      "A piano's damper pedal. Holding it swaps the fast 45 ms release for " +
+      "a 1.5 second decay, so lifting a key leaves the note ringing and " +
       "successive notes overlap into chords instead of cutting each other " +
       "off. Engaging it on the website does the same thing.",
   },
@@ -132,17 +124,16 @@ export const DESIGN_NOTES = [
   {
     title: "Audio outside the Python loop",
     body:
-      "CircuitPython renders synthio, the mixer, effects, and I2S audio in " +
-      "native code. The Python loop only handles button edges, controls, " +
-      "track status, and USB messages, so serial input cannot starve audio.",
+      "CircuitPython renders synthio and I2S audio in native code. The " +
+      "Python loop only handles button edges, controls, and USB messages, " +
+      "so serial input cannot starve audio.",
   },
   {
-    title: "One speaker, two sources",
+    title: "A real effect bypass",
     body:
-      "Backing tracks stream from the Pico's own flash as 22.05 kHz mono WAV " +
-      "and are mixed into the same I2S output as the oscillators. The track " +
-      "is added after the filter and echo, so the recording stays clean " +
-      "while your playing keeps the wah sweep and the delay tail.",
+      "With effects off, synthio feeds the I2S amplifier directly: there is " +
+      "no mixer or filter in the path. Echo is inserted only while its " +
+      "control is on, then removed completely when switched off.",
   },
   {
     title: "Click-free envelopes",
@@ -155,8 +146,8 @@ export const DESIGN_NOTES = [
   {
     title: "Why chords need headroom",
     body:
-      "Voices sum, so the wave tables reserve digital headroom for all three " +
-      "buttons. A separate smoothed chord gain protects the I2S amplifier's " +
+      "Voices sum, so multiple notes share a fixed digital headroom budget. " +
+      "A smoothed per-note gain protects the I2S amplifier's " +
       "analogue output swing only while multiple notes are held, keeping one " +
       "note loud without letting a chord crackle.",
   },
