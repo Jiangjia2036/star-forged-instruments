@@ -30,7 +30,7 @@ function TeamPage({ onBack }) {
       name: "Jiaxiong Jiang",
       role: "3D / Visuals",
       description:
-        "Worked on the 3D visualizer, instrument design, and visual presentation.",
+        "My name is Jiaxiong Jiang, a transfer from Skyline college which locate in Bay Area. I am majoring in Computer engineering.I like to play games and play the guitar in my free time.",
       image:
         "/photos/Jiaxiong.jpeg",
     },
@@ -48,7 +48,7 @@ function TeamPage({ onBack }) {
           </button>
 
           <h1>
-            Star Forged
+            Meet the Team
           </h1>
         </header>
       )}
@@ -60,15 +60,11 @@ function TeamPage({ onBack }) {
           </p>
 
           <h2>
-            Meet the Team
+            Star Forged
           </h2>
 
           <p>
-            We are Star Forged, an
-            interactive musical
-            instrument combining
-            hardware, software, sound,
-            and visual effects.
+            We are Star Forged, a team of four transfer students joining UCLA in Fall 2026. We came together through the 2026 HACK to combine our different skills and build something we could bring to the competition. This instrument is our project for the 2026 HACK, where we challenged ourselves to turn our ideas into a working interactive experience.
           </p>
         </section>
 
@@ -134,12 +130,7 @@ function TeamPage({ onBack }) {
           </h2>
 
           <p>
-            Star Forged Instruments
-            combines a Raspberry Pi Pico,
-            web technologies, electronic
-            sound generation, and
-            interactive visuals into one
-            musical instrument.
+            Our project is an interactive UFO-shaped musical instrument that bridges physical hardware with a web-based interface. Our system integrates a Raspberry Pi Pico for real-time hardware control with a React-based web interface, using Web Serial for communication between the instrument and browser. It combines real-time note input, customizable scales and octaves, sound effects, song playback, and interactive visual feedback powered by Web Audio and Three.js to create an engaging and immersive musical experience.
           </p>
 
           <div className="tech-list">

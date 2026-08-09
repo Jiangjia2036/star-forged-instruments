@@ -21,6 +21,7 @@ function hueFor(note) {
 function Keyboard({
   synth,
   activeNotes,
+  sustain,
   root,
   setRoot,
   octave,
@@ -33,22 +34,36 @@ function Keyboard({
 
   const startNote = async (note) => {
     await synth.current.context.resume();
+
     synth.current.triggerAttack(note);
   };
 
   const stopNote = (note) => {
+    // Normal release:
+    // 1 seconds when Sustain is OFF
+    //
+    // Sustain release:
+    // 6seconds when Sustain is ON
+    synth.current.set({
+      envelope: {
+        release: sustain ? 6: 1,
+      },
+    });
+
     synth.current.triggerRelease(note);
   };
 
   return (
-    <section className="board">
-      <div className="scale-row">
-        <span className="label">Key</span>
-
+    <section className="keyboard-section">
+      <div className="keyboard-controls">
         {ROOTS.map((name) => (
           <button
             key={name}
-            className={root === name ? "scale-btn active" : "scale-btn"}
+            className={
+              root === name
+                ? "scale-btn active"
+                : "scale-btn"
+            }
             onClick={() => setRoot(name)}
           >
             {name}
@@ -61,16 +76,22 @@ function Keyboard({
 
         <button
           className="scale-btn"
-          onClick={() => setOctave(Math.max(2, octave - 1))}
+          onClick={() =>
+            setOctave(Math.max(2, octave - 1))
+          }
         >
           -
         </button>
 
-        <span className="octave-value">{octave}</span>
+        <span className="octave-value">
+          {octave}
+        </span>
 
         <button
           className="scale-btn"
-          onClick={() => setOctave(Math.min(6, octave + 1))}
+          onClick={() =>
+            setOctave(Math.min(6, octave + 1))
+          }
         >
           +
         </button>
@@ -82,7 +103,11 @@ function Keyboard({
         {SPREADS.map((name) => (
           <button
             key={name}
-            className={spread === name ? "scale-btn active" : "scale-btn"}
+            className={
+              spread === name
+                ? "scale-btn active"
+                : "scale-btn"
+            }
             onClick={() => setSpread(name)}
           >
             {name}
@@ -97,24 +122,37 @@ function Keyboard({
           return (
             <button
               key={note + i}
-              style={{ "--glow-hue": hueFor(note) }}
-              className={
-                [
-                  "key",
-                  activeNotes.includes(note) ? "pico-active" : "",
-                  btn ? "key-mapped" : "",
-                ]
-                  .filter(Boolean)
-                  .join(" ")
-              }
+              style={{
+                "--glow-hue": hueFor(note),
+              }}
+              className={[
+                "key",
+                activeNotes.includes(note)
+                  ? "pico-active"
+                  : "",
+                btn
+                  ? "key-mapped"
+                  : "",
+              ]
+                .filter(Boolean)
+                .join(" ")}
               onMouseDown={() => startNote(note)}
               onMouseUp={() => stopNote(note)}
               onMouseLeave={(e) => {
-                if (e.buttons) stopNote(note);
+                if (e.buttons) {
+                  stopNote(note);
+                }
               }}
             >
-              {btn && <span className="key-badge">{btn}</span>}
-              <span className="key-name">{note}</span>
+              {btn && (
+                <span className="key-badge">
+                  {btn}
+                </span>
+              )}
+
+              <span className="key-name">
+                {note}
+              </span>
             </button>
           );
         })}
