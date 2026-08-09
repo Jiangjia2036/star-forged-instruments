@@ -7,11 +7,11 @@ import Controls from "./components/Controls";
 import Visualizer from "./components/Visualizer";
 import SongPlayer from "./components/SongPlayer";
 import InstrumentPage from "./components/InstrumentPage";
-import BandPage from "./components/BandPage";
+import TeamPage from "./components/TeamPage";
 import { PicoSerial, isSerialSupported } from "./pico-serial";
 import { buttonNotes as computeButtonNotes } from "./scales";
 
-const PAGE_IDS = new Set(["perform", "instrument", "band"]);
+const PAGE_IDS = new Set(["perform", "instrument", "team"]);
 
 function pageFromHash() {
   const requested = window.location.hash.replace(/^#\/?/, "");
@@ -343,9 +343,30 @@ function App() {
     serialRef.current?.send(tuneCommand);
   }, [picoConnected, tuneCommand]);
 
+  // The team view takes over the whole screen rather than sitting inside the
+  // instrument layout. The starfield stays mounted behind it, so the UFO can
+  // fly out of frame on the way there and back in on the way home.
+  if (page === "team") {
+    return (
+      <div className="app">
+        <Visualizer
+          analyzer={analyzer}
+          activeNotes={activeNotes}
+          currentPage="team"
+        />
+
+        <TeamPage onBack={() => navigateToPage("perform")} />
+      </div>
+    );
+  }
+
   return (
     <div className="app">
-      <Visualizer analyzer={analyzer} activeNotes={activeNotes} />
+      <Visualizer
+        analyzer={analyzer}
+        activeNotes={activeNotes}
+        currentPage="instrument"
+      />
 
       {/* Song progress across the very top of the page */}
       <div className="top-progress">
@@ -363,7 +384,6 @@ function App() {
             {[
               ["perform", "Perform"],
               ["instrument", "Instrument"],
-              ["band", "Band"],
             ].map(([id, label]) => (
               <button
                 key={id}
@@ -378,6 +398,14 @@ function App() {
           </nav>
 
           <div className="pico-bar">
+            <button
+              className="page-btn"
+              type="button"
+              onClick={() => navigateToPage("team")}
+            >
+              Meet The Team
+            </button>
+
             <span
               className={apiOnline ? "api-status on" : "api-status"}
               title="FastAPI backend status"
@@ -429,7 +457,6 @@ function App() {
 
           {page === "instrument" && <InstrumentPage />}
 
-          {page === "band" && <BandPage />}
         </main>
 
         {page === "perform" && (
