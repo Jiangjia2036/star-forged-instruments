@@ -56,13 +56,11 @@ function makeSong(id, title, bpm, sequence, extra = {}) {
 // Each circle is one section of the set: a song, a timestamp range, and a
 // ring of fifteen notes with exact octaves - the same fifteen positions the
 // instrument's shell has. Buttons sit at ring positions 3-15; the two
-// lowest positions have no buttons.
+// lowest positions have no buttons and stay screen-only.
 //
-// `erased` lists the circled notes: the ones the song does not need. They
-// are removed from the on-screen keyboard for the section, and a button
-// whose position holds an erased note is tuned to a rest, so pressing it
-// stays silent. The two buttonless low notes are circled in the notebook
-// for the same reason - there is nothing there to press.
+// Every note of the ring is available for the whole section. (A section may
+// optionally carry an `erased` list to drop notes from the keyboard and
+// rest their buttons - none does today.)
 //
 // While a track with sections is playing, these override the key/octave
 // selectors, and every boundary retunes the Pico mid-song.
@@ -72,48 +70,31 @@ const XFILES_SCALE = [
   "F4", "G4", "A4", "B4", "C5", "D5", "E5",
   "F5", "G5", "A5", "B5", "C6", "D6", "E6", "F6",
 ];
-const XFILES_ERASED = ["F4", "G4", "C5", "F5", "D6", "E6", "F6"];
 
 // "For Television Rules the Nation" - the replacement circle (the E-minor
-// one above it is scribbled out). D3 to D5 with F# only, and every D
-// circled off, so the playable run starts at E3.
+// one above it is scribbled out). D3 to D5 with F# only.
 const TELEVISION_SCALE = [
   "D3", "E3", "F#3", "G3", "A3", "B3", "C4",
   "D4", "E4", "F#4", "G4", "A4", "B4", "C5", "D5",
 ];
-const TELEVISION_ERASED = ["D3", "D4", "D5"];
 
 // "For Da Funk" - D natural minor from D3, A# spelled as drawn.
 const DAFUNK_SCALE = [
   "D3", "E3", "F3", "G3", "A3", "A#3", "C4",
   "D4", "E4", "F4", "G4", "A4", "A#4", "C5", "D5",
 ];
-const DAFUNK_ERASED = ["D3", "E3", "F3", "E4", "A4", "C5", "D5"];
 
 // The medley's circles tile its whole timeline: 0s -> 40s -> 2m12s -> end.
 // `until: null` means "until the track ends".
 const MEDLEY_SECTIONS = [
-  {
-    at: 0,
-    until: 40,
-    title: "X-Files",
-    scale: XFILES_SCALE,
-    erased: XFILES_ERASED,
-  },
+  { at: 0, until: 40, title: "X-Files", scale: XFILES_SCALE },
   {
     at: 40,
     until: 132,
     title: "Television Rules the Nation",
     scale: TELEVISION_SCALE,
-    erased: TELEVISION_ERASED,
   },
-  {
-    at: 132,
-    until: null,
-    title: "Da Funk",
-    scale: DAFUNK_SCALE,
-    erased: DAFUNK_ERASED,
-  },
+  { at: 132, until: null, title: "Da Funk", scale: DAFUNK_SCALE },
 ];
 
 // Which section is active at `seconds` into a track, or null.
@@ -146,13 +127,7 @@ export const SONGS = [
     {
       audioUrl: "/audio/x-files-theme.mp3",
       sections: [
-        {
-          at: 0,
-          until: null,
-          title: "X-Files",
-          scale: XFILES_SCALE,
-          erased: XFILES_ERASED,
-        },
+        { at: 0, until: null, title: "X-Files", scale: XFILES_SCALE },
       ],
     }
   ),
