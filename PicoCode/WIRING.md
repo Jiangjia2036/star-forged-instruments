@@ -1,6 +1,6 @@
 # Wiring and circuit schematic
 
-Raspberry Pi Pico 2 W (RP2350) running MicroPython 1.28.
+Raspberry Pi Pico 2 W (RP2350) running CircuitPython 10.2.1.
 
 ## Pin map
 
@@ -11,7 +11,7 @@ Raspberry Pi Pico 2 W (RP2350) running MicroPython 1.28.
 | GP15  | I2S amp `LRC`        | I2S word select   | |
 | GP16  | Note button 1        | Input, pull-up    | Root — C in the key of C |
 | GP17  | Note button 2        | Input, pull-up    | Third — E in the key of C |
-| GP18  | Note button 3        | Input, pull-up    | Fifth — G in the key of C (not yet soldered) |
+| GP18  | Note button 3        | Input, pull-up    | Fifth — G in the key of C |
 | GP19  | Echo switch          | Input, pull-up    | Toggles delay line |
 | GP20  | **Sustain pedal**    | Input, pull-up    | Damper — released keys ring out |
 | GP26  | Flex sensor          | ADC0              | Wah filter cutoff |
@@ -33,10 +33,9 @@ Every button and switch is wired identically:
              enabled in software)
 ```
 
-No external resistor is required. `Pin(n, Pin.IN, Pin.PULL_UP)` enables the
-RP2350's internal pull-up, so the pin idles at 3.3 V (reads `1`) and is
-pulled to 0 V (reads `0`) when the switch closes. The firmware inverts this,
-which is why the code reads `not btn.value()`.
+No external resistor is required. CircuitPython's `keypad.Keys(...,
+value_when_pressed=False, pull=True)` enables the internal pull-up, so the pin
+idles at 3.3 V and is pulled to ground when the switch closes.
 
 On a four-legged tactile switch, the two legs on the *same* side are already
 connected internally. Use legs on opposite sides.
@@ -59,9 +58,8 @@ Both analogue inputs are voltage dividers feeding an ADC:
              pot other end ─────── GND
 ```
 
-The flex divider's calibration constants live in `main.py` as `SENSOR_MIN`
-and `SENSOR_MAX`. If the wah sweep feels wrong, print `flex_sensor.read_u16()`
-relaxed and fully bent, then set those two numbers accordingly.
+The flex divider's calibration constants live in `config.py` as
+`FLEX_RAW_MIN` and `FLEX_RAW_MAX`.
 
 ## I2S amplifier
 
@@ -75,11 +73,28 @@ A MAX98357A-class breakout:
 | BCLK    | GP14 |
 | LRC     | GP15 |
 | SD      | leave floating (enabled) |
-| GAIN    | floating = 9 dB; 10 kΩ to GND = 15 dB |
+| GAIN    | see below |
 
-Configured as mono, 16-bit, 22 000 Hz. If the instrument is still too quiet
-after raising `AMPLITUDE` and `OUTPUT_GAIN` in software, the GAIN pin is the
-remaining hardware headroom.
+### The GAIN pin is the answer to "it's too quiet"
+
+Voices sum and the synth has to leave headroom for chords, so a single note
+can never use the full output range. Software cannot recover that — a mixer
+level tops out at 1.0. The amplifier can:
+
+| GAIN pin        | Gain  |
+| --------------- | ----- |
+| 100 kΩ to VDD   | 3 dB  |
+| wired to VDD    | 6 dB  |
+| **floating**    | **9 dB**  ← default, what you have |
+| 100 kΩ to GND   | 12 dB |
+| **wired to GND**| **15 dB** ← +6 dB, twice the amplitude |
+
+A single wire from GAIN to GND doubles the voltage gain, but it also makes the
+amplifier reach its analogue limit sooner. If chords crackle at high volume,
+leave GAIN floating (9 dB), turn the volume pot down, or reduce `CHORD_LEVEL`
+in `config.py`.
+
+Audio is configured as mono, signed 16-bit, 22,050 Hz.
 
 ## Signal flow
 
