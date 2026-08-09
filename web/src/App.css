@@ -387,10 +387,6 @@ button:hover {
   margin-left: auto;
 }
 
-/* The mode toggle and the on-instrument track list lived here. Backing
-   tracks now play through the computer, and the performer always plays the
-   melody, so neither control exists any more. */
-
 .progress-track {
   height: 5px;
 
@@ -398,8 +394,6 @@ button:hover {
   border-radius: 99px;
 
   overflow: hidden;
-
-  margin-bottom: 24px;
 }
 
 .progress-fill {
@@ -411,16 +405,6 @@ button:hover {
   transition: none;
 }
 
-/* Cue - what to play right now */
-
-.cue {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-
-  margin-bottom: 20px;
-}
-
 .label {
   font-size: 10.5px;
   letter-spacing: 2px;
@@ -429,64 +413,6 @@ button:hover {
   color: var(--faint);
 
   margin-bottom: 10px;
-}
-
-.cue-note {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-
-.cue-name {
-  font-size: 54px;
-  font-weight: 700;
-  line-height: 1;
-
-  letter-spacing: -1px;
-}
-
-.cue-badge {
-  padding: 5px 11px;
-
-  font-size: 12px;
-  font-weight: 600;
-
-  background: rgba(91, 140, 255, 0.18);
-  border: 1px solid rgba(91, 140, 255, 0.5);
-  border-radius: 8px;
-}
-
-.cue.idle .cue-name {
-  font-size: 34px;
-  color: var(--faint);
-}
-
-.next-row {
-  display: flex;
-  justify-content: center;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.next-chip {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 6px;
-
-  padding: 5px 10px;
-
-  font-size: 12px;
-
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid var(--panel-line);
-  border-radius: 8px;
-
-  color: var(--muted);
-}
-
-.next-chip b {
-  font-size: 13.5px;
-  color: var(--text);
 }
 
 /* ============================================================
@@ -930,24 +856,6 @@ a.linkedin-link:hover {
   transition: 0.04s;
 }
 
-/* The song is asking for this key - outline, not fill, so it reads
-   differently from an actual press */
-.key.key-target {
-  outline: 2px solid hsl(var(--glow-hue), 95%, 66%);
-  outline-offset: -2px;
-
-  animation: target-pulse 0.7s ease-in-out infinite;
-}
-
-@keyframes target-pulse {
-  0%, 100% {
-    box-shadow: 0 0 8px 1px hsla(var(--glow-hue), 95%, 62%, 0.45);
-  }
-  50% {
-    box-shadow: 0 0 20px 4px hsla(var(--glow-hue), 95%, 62%, 0.9);
-  }
-}
-
 /* ============================================================
    Console - effects and sliders in one strip
    ============================================================ */
@@ -1046,38 +954,6 @@ a.linkedin-link:hover {
   color: var(--muted);
 }
 
-/* What the site hears in a backing track */
-.cue-badge-off {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: var(--panel-line);
-  color: var(--faint);
-}
-
-.key-readout {
-  margin-top: 12px;
-
-  font-size: 12.5px;
-  color: var(--muted);
-}
-
-.key-readout b {
-  color: var(--text);
-}
-
-.key-conf {
-  margin-left: 8px;
-  padding: 2px 7px;
-
-  font-size: 10px;
-  letter-spacing: 0.8px;
-  text-transform: uppercase;
-
-  background: rgba(255, 255, 255, 0.06);
-  border-radius: 999px;
-
-  color: var(--faint);
-}
-
 .slider input {
   width: 108px;
 
@@ -1157,10 +1033,6 @@ a.linkedin-link:hover {
 
   .stage {
     padding: 18px 16px;
-  }
-
-  .cue-name {
-    font-size: 42px;
   }
 
   .key {

@@ -83,10 +83,16 @@ GAIN_RAMP_HZ = 40.0
 # noise would fire the effect on its own.
 FLEX_ENABLED = True
 
-# Raw 16-bit endpoints of the divider, carried over from the legacy build's
-# measured values. Recalibrate if a normal bend does not reach the trigger:
-# set STATUS_BROADCAST_S = 2.0, watch the flex= field in the browser console
-# while moving the strip fully each way, and put those two numbers here.
+# Raw 16-bit endpoints of the divider, measured on the legacy build.
+#
+# These check out for the hardware actually fitted: an Adafruit 1070 strip
+# (~25k flat, ~100k flexed) through a ~3.9k divider gives 2460 and 8844,
+# which is within 4% of these against a sensor spec'd at +/-30%. Leave them
+# unless the strip or the resistor changes.
+#
+# Bending LOWERS the reading, since the strip is on the high side of the
+# divider. The trigger uses distance from rest, so the direction does not
+# matter to it.
 FLEX_RAW_MIN = 2368
 FLEX_RAW_MAX = 8548
 

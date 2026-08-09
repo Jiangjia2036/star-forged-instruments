@@ -21,7 +21,6 @@ function hueFor(note) {
 function Keyboard({
   synth,
   activeNotes,
-  targetNotes = [],
   root,
   setRoot,
   octave,
@@ -103,7 +102,6 @@ function Keyboard({
                 [
                   "key",
                   activeNotes.includes(note) ? "pico-active" : "",
-                  targetNotes.includes(note) ? "key-target" : "",
                   btn ? "key-mapped" : "",
                 ]
                   .filter(Boolean)
