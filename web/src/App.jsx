@@ -6,45 +6,109 @@ import Keyboard from "./components/Keyboard";
 import Controls from "./components/Controls";
 import Visualizer from "./components/Visualizer";
 import SongPlayer from "./components/SongPlayer";
+import InstrumentPage from "./components/InstrumentPage";
 import TeamPage from "./components/TeamPage";
 import { PicoSerial, isSerialSupported } from "./pico-serial";
 import { buttonNotes as computeButtonNotes } from "./scales";
+
+const PAGE_IDS = new Set(["perform", "instrument", "team"]);
+
+function pageFromHash() {
+  const requested = window.location.hash.replace(/^#\/?/, "");
+  return PAGE_IDS.has(requested) ? requested : "perform";
+}
 
 function App() {
   const delay = useRef(null);
   const analyzer = useRef(null);
   const synth = useRef(null);
+  const backgroundMusicRef = useRef(null);
 
-  // build the audio graph exactly once, not on every render
   if (synth.current === null) {
     delay.current = new Tone.FeedbackDelay("8n", 0.4);
     analyzer.current = new Tone.Analyser("waveform", 256);
-    synth.current = new Tone.Synth().connect(delay.current);
+    synth.current = new Tone.PolySynth(Tone.Synth).connect(delay.current);
     delay.current.connect(analyzer.current);
     analyzer.current.toDestination();
   }
 
-  const [volume, setVolume] = useState(-10);
   const [effectStrength, setEffectStrength] = useState(0);
   const [selectedEffect, setSelectedEffect] = useState("");
 
   const [picoConnected, setPicoConnected] = useState(false);
   const [activeNotes, setActiveNotes] = useState([]);
+  const [apiOnline, setApiOnline] = useState(null);
 
-  // Notes the current song wants the performer to press right now
   const [targetNotes, setTargetNotes] = useState([]);
 
-  // Song progress, surfaced as a bar across the top of the page
+  const [sustain, setSustain] = useState(false);
+
+  const [picoEcho, setPicoEcho] = useState(false);
+
+  const [potVolume, setPotVolume] = useState(0);
+
   const [songProgress, setSongProgress] = useState(0);
 
-  // WAV backing tracks stored in the Pico's own flash
   const [picoTracks, setPicoTracks] = useState([]);
   const [picoTrackPlaying, setPicoTrackPlaying] = useState(null);
 
-  // Scale / octave / button layout. Changing any of these retunes the Pico.
+  const [page, setPage] = useState(pageFromHash);
+
+  useEffect(() => {
+    const music = new Audio("/audio/space-ambient.mp3");
+
+    music.loop = true;
+    music.volume = 0.1;
+    music.preload = "auto";
+
+    backgroundMusicRef.current = music;
+
+    return () => {
+      music.pause();
+      music.currentTime = 0;
+      backgroundMusicRef.current = null;
+    };
+  }, []);
+
+  const [musicPlaying, setMusicPlaying] = useState(false);
+  const [musicVolume, setMusicVolume] = useState(0.1);
+
+  const toggleBackgroundMusic = async () => {
+    const music = backgroundMusicRef.current;
+
+    if (!music) return;
+
+    if (musicPlaying) {
+      music.pause();
+      setMusicPlaying(false);
+      return;
+    }
+
+    try {
+      await Tone.start();
+      music.volume = musicVolume;
+      await music.play();
+      setMusicPlaying(true);
+    } catch (err) {
+      console.log(
+        "Background music failed:",
+        err.message
+      );
+    }
+  };
+
+  const changeMusicVolume = (event) => {
+    const volume = Number(event.target.value);
+    setMusicVolume(volume);
+
+    if (backgroundMusicRef.current) {
+      backgroundMusicRef.current.volume = volume;
+    }
+  };
+
   const [root, setRoot] = useState("C");
   const [octave, setOctave] = useState(4);
-  const [spread, setSpread] = useState("steps");
+  const [spread, setSpread] = useState("chord");
 
   const picoNotes = computeButtonNotes(
     root,
@@ -54,15 +118,58 @@ function App() {
 
   const serialRef = useRef(null);
 
-  // mirror of activeNotes for use inside serial callbacks
   const activeNotesRef = useRef([]);
 
-  const [currentPage, setCurrentPage] =
-    useState("instrument");
+  useEffect(() => {
+    const controller = new AbortController();
 
-  // Browsers start the audio context suspended and only Tone.start() reliably
-  // unlocks it. pointerdown fires before mousedown, so the very first click
-  // anywhere - a key, a scale button, Connect Pico - starts audio in time.
+    fetch("/api/health", { signal: controller.signal })
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error("API health check failed");
+        }
+
+        return response.json();
+      })
+      .then((health) => {
+        setApiOnline(health.status === "ok");
+      })
+      .catch((error) => {
+        if (error.name !== "AbortError") {
+          setApiOnline(false);
+        }
+      });
+
+    return () => controller.abort();
+  }, []);
+
+  useEffect(() => {
+    const syncPageToHash = () => {
+      setPage(pageFromHash());
+    };
+
+    window.addEventListener(
+      "hashchange",
+      syncPageToHash
+    );
+
+    return () => {
+      window.removeEventListener(
+        "hashchange",
+        syncPageToHash
+      );
+    };
+  }, []);
+
+  const navigateToPage = (nextPage) => {
+    setPage(nextPage);
+
+    window.location.hash =
+      nextPage === "perform"
+        ? ""
+        : nextPage;
+  };
+
   useEffect(() => {
     const unlock = async () => {
       try {
@@ -103,29 +210,60 @@ function App() {
   }, []);
 
   useEffect(() => {
-    synth.current.volume.value = volume;
-  }, [volume]);
-
-  useEffect(() => {
-    if (selectedEffect === "Echo") {
-      delay.current.wet.value =
-        effectStrength / 100;
-    } else {
-      delay.current.wet.value = 0;
-    }
+    delay.current.wet.value =
+      selectedEffect === "Echo"
+        ? effectStrength / 100
+        : 0;
   }, [
     effectStrength,
+    selectedEffect
+  ]);
+
+  useEffect(() => {
+    if (!picoConnected) return;
+
+    const pico = serialRef.current;
+
+    if (!pico) return;
+
+    const depth =
+      Math.round(effectStrength);
+
+    if (selectedEffect === "Warp") {
+      pico.send("FX_WAVE_SAW");
+      pico.send("FX_VIB_" + depth);
+      pico.send("FX_TREM_0");
+      pico.send("FX_ECHO_OFF");
+    } else if (
+      selectedEffect === "Echo"
+    ) {
+      pico.send("FX_WAVE_SINE");
+      pico.send("FX_VIB_0");
+      pico.send("FX_TREM_0");
+      pico.send("FX_ECHO_ON");
+    } else if (
+      selectedEffect === "Chorus"
+    ) {
+      pico.send("FX_WAVE_SQUARE");
+      pico.send("FX_VIB_0");
+      pico.send("FX_TREM_" + depth);
+      pico.send("FX_ECHO_OFF");
+    } else {
+      pico.send("FX_WAVE_SINE");
+      pico.send("FX_VIB_0");
+      pico.send("FX_TREM_0");
+      pico.send("FX_ECHO_OFF");
+    }
+  }, [
+    picoConnected,
     selectedEffect,
+    effectStrength
   ]);
 
   const updateActiveNotes = (notes) => {
     activeNotesRef.current = notes;
     setActiveNotes(notes);
   };
-
-  // Pico input is VISUAL ONLY. The sound for a physical button press comes
-  // from the speaker wired to the Pico's own I2S output, so the browser must
-  // not play the note as well or it would double up and lag behind.
 
   const picoNoteOn = (note) => {
     console.log(
@@ -159,13 +297,17 @@ function App() {
   };
 
   const handleLine = (line) => {
-    const noteMatch = line.match(
-      /^NOTE_([A-G]#?[0-8])_(ON|OFF)$/
-    );
+    const noteMatch =
+      line.match(
+        /^NOTE_([A-G]#?[0-8])_(ON|OFF)$/
+      );
 
     if (noteMatch) {
-      const [, note, action] =
-        noteMatch;
+      const [
+        ,
+        note,
+        action
+      ] = noteMatch;
 
       if (action === "ON") {
         picoNoteOn(note);
@@ -176,26 +318,56 @@ function App() {
       return;
     }
 
-    const effectMatch = line.match(
-      /^EFFECT_ECHO_(ON|OFF)$/
-    );
+    const effectMatch =
+      line.match(
+        /^EFFECT_ECHO_(ON|OFF)$/
+      );
 
     if (effectMatch) {
-      setSelectedEffect(
+      setPicoEcho(
         effectMatch[1] === "ON"
-          ? "Echo"
-          : ""
       );
 
       return;
     }
 
-    // Backing tracks living in the Pico's flash
-    if (line.startsWith("TRACKS_")) {
-      const names = line
-        .slice(7)
-        .split("|")
-        .filter(Boolean);
+    const volMatch =
+      line.match(
+        /^VOL_(\d+)$/
+      );
+
+    if (volMatch) {
+      setPotVolume(
+        Math.min(
+          100,
+          Number(volMatch[1])
+        )
+      );
+
+      return;
+    }
+
+    const sustainMatch =
+      line.match(
+        /^SUSTAIN_(ON|OFF)$/
+      );
+
+    if (sustainMatch) {
+      setSustain(
+        sustainMatch[1] === "ON"
+      );
+
+      return;
+    }
+
+    if (
+      line.startsWith("TRACKS_")
+    ) {
+      const names =
+        line
+          .slice(7)
+          .split("|")
+          .filter(Boolean);
 
       console.log(
         "Pico tracks:",
@@ -207,13 +379,12 @@ function App() {
       return;
     }
 
-    const posMatch = line.match(
-      /^TRACK_POS_(\d+)$/
-    );
+    const posMatch =
+      line.match(
+        /^TRACK_POS_(\d+)$/
+      );
 
     if (posMatch) {
-      // Position reported by the Pico as it plays, so the bar follows the
-      // speaker instead of a timer that could drift
       setSongProgress(
         Math.min(
           100,
@@ -234,7 +405,11 @@ function App() {
       return;
     }
 
-    if (line.startsWith("TRACK_ERROR_")) {
+    if (
+      line.startsWith(
+        "TRACK_ERROR_"
+      )
+    ) {
       console.log(
         "Pico track error:",
         line.slice(12)
@@ -244,8 +419,6 @@ function App() {
 
       return;
     }
-
-    // PICO_READY and any debug lines land here
   };
 
   const connectPico = async () => {
@@ -265,7 +438,6 @@ function App() {
           onConnect: () => {
             setPicoConnected(true);
 
-            // ask what backing tracks are on the board
             setTimeout(() => {
               serialRef.current?.send(
                 "TRACK_LIST"
@@ -292,9 +464,6 @@ function App() {
     serialRef.current?.disconnect();
   };
 
-  // Song playback drives the speaker wired to the Pico, so the instrument
-  // itself produces the sound. The browser only shows what to play.
-
   const songNoteOn = (note) => {
     console.log(
       "Song:",
@@ -313,7 +482,12 @@ function App() {
     );
   };
 
-  // Backing tracks played by the Pico itself, mixed with your beeps
+  const silenceSongNotes = () => {
+    serialRef.current?.send(
+      "CMD_ALLOFF"
+    );
+  };
+
   const playPicoTrack = (name) => {
     console.log(
       "Pico track play:",
@@ -327,6 +501,21 @@ function App() {
     );
   };
 
+  const handleDetectedKey = (name) => {
+    setRoot((current) => {
+      if (current === name) {
+        return current;
+      }
+
+      console.log(
+        "Following detected key:",
+        name
+      );
+
+      return name;
+    });
+  };
+
   const stopPicoTrack = () => {
     serialRef.current?.send(
       "TRACK_STOP"
@@ -336,10 +525,9 @@ function App() {
     setSongProgress(0);
   };
 
-  // Retune the instrument whenever the key, octave or button layout changes,
-  // so the physical buttons always play the scale shown on screen.
   const tuneCommand =
-    "TUNE_" + picoNotes.join("_");
+    "TUNE_" +
+    picoNotes.join("_");
 
   useEffect(() => {
     if (!picoConnected) return;
@@ -354,83 +542,208 @@ function App() {
     );
   }, [
     picoConnected,
-    tuneCommand,
+    tuneCommand
   ]);
 
+  if (page === "team") {
+    return (
+      <div className="app">
+        <Visualizer
+          analyzer={analyzer}
+          activeNotes={activeNotes}
+          currentPage="team"
+        />
+
+        <TeamPage
+          onBack={() =>
+            navigateToPage("perform")
+          }
+        />
+      </div>
+    );
+  }
+
   return (
-    <>
+    <div className="app">
       <Visualizer
         analyzer={analyzer}
-        currentPage={currentPage}
+        activeNotes={activeNotes}
+        currentPage="instrument"
       />
 
-      {currentPage === "instrument" ? (
-        <>
-          {/* Song progress across the very top of the viewport */}
-          <div className="top-progress">
-            <div
-              className="top-progress-fill"
-              style={{
-                width:
-                  songProgress + "%",
-              }}
+      <div className="top-progress">
+        <div
+          className="top-progress-fill"
+          style={{
+            width:
+              songProgress + "%"
+          }}
+        />
+      </div>
+
+      <div className="ui">
+      <div className="music-control">
+        <button
+          className="music-toggle"
+          type="button"
+          onClick={toggleBackgroundMusic}
+          aria-label={
+            musicPlaying
+              ? "Pause background music"
+              : "Play background music"
+          }
+        >
+          {musicPlaying ? "♫" : "♪"}
+        </button>
+
+        <div className="music-panel">
+          <span>
+            {musicPlaying
+              ? "BGM On"
+              : "BGM Off"}
+          </span>
+
+          <input
+            type="range"
+            min="0"
+            max="0.3"
+            step="0.01"
+            value={musicVolume}
+            onChange={changeMusicVolume}
+            aria-label="Background music volume"
+          />
+        </div>
+      </div>
+
+        <header className="topbar">
+          <div className="brand">
+            <img
+              src="/photos/StarForged2.png"
+              alt="Star Forged"
+              className="brand-logo"
             />
-          </div>
 
-          <div className="ui">
-            <header className="topbar">
-              <h1 className="brand">
-                Star Forged Instruments
-              </h1>
+            <span>
+              Singularity
+            </span>
+      </div>
 
-              <div className="pico-bar">
+          <nav className="nav">
+            {[
+              [
+                "perform",
+                "Perform"
+              ],
+              [
+                "instrument",
+                "Instrument"
+              ],
+            ].map(
+              ([id, label]) => (
                 <button
-                  className="page-btn"
-                  onClick={() =>
-                    setCurrentPage("team")
-                  }
-                >
-                  Meet The Team
-                </button>
-
-                <span
+                  key={id}
                   className={
-                    picoConnected
-                      ? "pico-status on"
-                      : "pico-status off"
+                    page === id
+                      ? "nav-btn active"
+                      : "nav-btn"
+                  }
+                  type="button"
+                  aria-current={
+                    page === id
+                      ? "page"
+                      : undefined
+                  }
+                  onClick={() =>
+                    navigateToPage(
+                      id
+                    )
                   }
                 >
-                  {picoConnected
-                    ? "Connected"
-                    : "Disconnected"}
-                </span>
-
-                <button
-                  className="connect-btn"
-                  onClick={
-                    picoConnected
-                      ? disconnectPico
-                      : connectPico
-                  }
-                >
-                  {picoConnected
-                    ? "Disconnect"
-                    : "Connect Pico"}
+                  {label}
                 </button>
-              </div>
-            </header>
+              )
+            )}
+          </nav>
 
+          <div className="pico-bar">
+            <button
+              className="page-btn"
+              type="button"
+              onClick={() =>
+                navigateToPage(
+                  "team"
+                )
+              }
+            >
+              Meet The Team
+            </button>
+
+            <span
+              className={
+                apiOnline
+                  ? "api-status on"
+                  : "api-status"
+              }
+              title="FastAPI backend status"
+            >
+              {apiOnline === null
+                ? "Checking API"
+                : apiOnline
+                ? "API online"
+                : "Local mode"}
+            </span>
+
+            <span
+              className={
+                picoConnected
+                  ? "pico-status on"
+                  : "pico-status off"
+              }
+            >
+              {picoConnected
+                ? "Connected"
+                : "Disconnected"}
+            </span>
+
+            <button
+              className="connect-btn"
+              onClick={
+                picoConnected
+                  ? disconnectPico
+                  : connectPico
+              }
+            >
+              {picoConnected
+                ? "Disconnect"
+                : "Connect Pico"}
+            </button>
+          </div>
+        </header>
+
+        <main className="page-area">
+          {page === "perform" && (
             <SongPlayer
-              onNoteOn={songNoteOn}
-              onNoteOff={songNoteOff}
+              onNoteOn={
+                songNoteOn
+              }
+              onNoteOff={
+                songNoteOff
+              }
+              onAllNotesOff={
+                silenceSongNotes
+              }
               onTargetsChange={
                 setTargetNotes
               }
               onProgress={
                 setSongProgress
               }
-              buttonNotes={picoNotes}
-              picoTracks={picoTracks}
+              buttonNotes={
+                picoNotes
+              }
+              picoTracks={
+                picoTracks
+              }
               picoTrackPlaying={
                 picoTrackPlaying
               }
@@ -440,24 +753,43 @@ function App() {
               onStopPicoTrack={
                 stopPicoTrack
               }
+              onDetectedKey={
+                handleDetectedKey
+              }
             />
+          )}
 
+          {page === "instrument" && (
+            <InstrumentPage />
+          )}
+        </main>
+
+        {page === "perform" && (
+          <div className="dock">
             <Keyboard
               synth={synth}
-              activeNotes={activeNotes}
-              targetNotes={targetNotes}
+              activeNotes={
+                activeNotes
+              }
+              targetNotes={
+                targetNotes
+              }
               root={root}
               setRoot={setRoot}
               octave={octave}
-              setOctave={setOctave}
+              setOctave={
+                setOctave
+              }
               spread={spread}
-              setSpread={setSpread}
-              buttonNotes={picoNotes}
+              setSpread={
+                setSpread
+              }
+              buttonNotes={
+                picoNotes
+              }
             />
 
             <Controls
-              volume={volume}
-              setVolume={setVolume}
               effectStrength={
                 effectStrength
               }
@@ -470,19 +802,36 @@ function App() {
               setSelectedEffect={
                 setSelectedEffect
               }
+              picoEcho={
+                picoEcho
+              }
+              potVolume={
+                potVolume
+              }
+              picoConnected={
+                picoConnected
+              }
+              sustain={
+                sustain
+              }
+              onToggleSustain={() => {
+                const next =
+                  !sustain;
+
+                setSustain(next);
+
+                serialRef.current?.send(
+                  "FX_SUSTAIN_" +
+                    (next
+                      ? "ON"
+                      : "OFF")
+                );
+              }}
             />
           </div>
-        </>
-      ) : (
-        <TeamPage
-          onBack={() =>
-            setCurrentPage(
-              "instrument"
-            )
-          }
-        />
-      )}
-    </>
+        )}
+      </div>
+    </div>
   );
 }
 

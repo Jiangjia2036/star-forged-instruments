@@ -95,12 +95,13 @@ export class PicoSerial {
       this.port = await navigator.serial.requestPort();
 
 
-      // A Raspberry Pi Pico reports USB vendor 0x2E8A. Bluetooth and other
-      // serial ports open successfully but never send note data, which looks
-      // identical to a working connection that is simply silent.
+      // MicroPython enumerates as Raspberry Pi (0x2E8A); CircuitPython as
+      // Adafruit (0x239A). Bluetooth and other serial ports open fine but
+      // never send note data, which looks identical to a silent connection.
+      const PICO_VENDORS = [0x2e8a, 0x239a];
       const info = this.port.getInfo();
 
-      if (info.usbVendorId !== 0x2e8a) {
+      if (!PICO_VENDORS.includes(info.usbVendorId)) {
 
         console.warn(
           "Selected port is not a Raspberry Pi Pico " +

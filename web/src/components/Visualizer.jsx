@@ -2,24 +2,45 @@ import * as THREE from "three";
 import { useRef, useEffect } from "react";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
 
-function Visualizer({ analyzer, currentPage }) {
-  const mountRef = useRef(null);
+function Visualizer({
+  analyzer,
+  currentPage,
+  activeNotes = []
+}) {
+  const mountRef =
+    useRef(null);
 
-  const sceneRef = useRef(null);
-  const cameraRef = useRef(null);
-  const rendererRef = useRef(null);
+  const notesRef =
+    useRef([]);
 
-  const currentPageRef = useRef(currentPage);
+  notesRef.current =
+    activeNotes;
 
-  const transitionRef = useRef(null);
+  const sceneRef =
+    useRef(null);
 
-  const ufoAwayRef = useRef(false);
+  const cameraRef =
+    useRef(null);
 
-  const photoStarRef = useRef(null);
+  const rendererRef =
+    useRef(null);
+
+  const currentPageRef =
+    useRef(currentPage);
+
+  const transitionRef =
+    useRef(null);
+
+  const ufoAwayRef =
+    useRef(false);
+
+  const photoStarRef =
+    useRef(null);
 
   useEffect(() => {
     if (
-      currentPageRef.current === currentPage
+      currentPageRef.current ===
+      currentPage
     ) {
       return;
     }
@@ -32,42 +53,57 @@ function Visualizer({ analyzer, currentPage }) {
     );
 
     if (
-      currentPageRef.current === "instrument" &&
+      currentPageRef.current ===
+        "instrument" &&
       currentPage === "team"
     ) {
       transitionRef.current = {
         type: "fly-away",
-        startTime: performance.now(),
+        startTime:
+          performance.now(),
       };
 
-      ufoAwayRef.current = false;
+      ufoAwayRef.current =
+        false;
     }
 
     if (
-      currentPageRef.current === "team" &&
-      currentPage === "instrument"
+      currentPageRef.current ===
+        "team" &&
+      currentPage ===
+        "instrument"
     ) {
       transitionRef.current = {
         type: "fly-in",
-        startTime: performance.now(),
+        startTime:
+          performance.now(),
       };
 
-      ufoAwayRef.current = true;
+      ufoAwayRef.current =
+        true;
     }
 
-    currentPageRef.current = currentPage;
+    currentPageRef.current =
+      currentPage;
   }, [currentPage]);
 
   useEffect(() => {
-    const width = window.innerWidth;
-    const height = window.innerHeight;
+    const width =
+      window.innerWidth;
 
-    const scene = new THREE.Scene();
+    const height =
+      window.innerHeight;
+
+    const scene =
+      new THREE.Scene();
 
     scene.background =
-      new THREE.Color(0x000000);
+      new THREE.Color(
+        0x000000
+      );
 
-    sceneRef.current = scene;
+    sceneRef.current =
+      scene;
 
     const camera =
       new THREE.PerspectiveCamera(
@@ -83,7 +119,8 @@ function Visualizer({ analyzer, currentPage }) {
       6
     );
 
-    cameraRef.current = camera;
+    cameraRef.current =
+      camera;
 
     const renderer =
       new THREE.WebGLRenderer({
@@ -121,7 +158,8 @@ function Visualizer({ analyzer, currentPage }) {
     renderer.domElement.style.zIndex =
       "0";
 
-    rendererRef.current = renderer;
+    rendererRef.current =
+      renderer;
 
     mountRef.current.appendChild(
       renderer.domElement
@@ -133,7 +171,9 @@ function Visualizer({ analyzer, currentPage }) {
         2
       );
 
-    scene.add(ambientLight);
+    scene.add(
+      ambientLight
+    );
 
     const directionalLight =
       new THREE.DirectionalLight(
@@ -156,11 +196,18 @@ function Visualizer({ analyzer, currentPage }) {
 
     const starVertices = [];
 
-    for (let i = 0; i < 1000; i++) {
+    for (
+      let i = 0;
+      i < 1000;
+      i++
+    ) {
       starVertices.push(
-        (Math.random() - 0.5) * 200,
-        (Math.random() - 0.5) * 200,
-        (Math.random() - 0.5) * 200
+        (Math.random() - 0.5) *
+          200,
+        (Math.random() - 0.5) *
+          200,
+        (Math.random() - 0.5) *
+          200
       );
     }
 
@@ -178,13 +225,22 @@ function Visualizer({ analyzer, currentPage }) {
         size: 0.5,
       });
 
+    const starGroup =
+      new THREE.Group();
+
+    scene.add(
+      starGroup
+    );
+
     const stars =
       new THREE.Points(
         starGeometry,
         starMaterial
       );
 
-    scene.add(stars);
+    starGroup.add(
+      stars
+    );
 
     const photoStarLoader =
       new THREE.TextureLoader();
@@ -211,20 +267,21 @@ function Visualizer({ analyzer, currentPage }) {
           );
 
         photoStar.scale.set(
-          0.8,
-          0.8,
-          1
+            0.45,
+            0.45,
+            1
         );
 
         photoStar.position.set(
-          -7,
-          3,
-          -10
+          -5,
+          2.5,
+          -8
         );
 
-        photoStar.visible = true;
+        photoStar.visible =
+          true;
 
-        scene.add(
+        starGroup.add(
           photoStar
         );
 
@@ -255,7 +312,8 @@ function Visualizer({ analyzer, currentPage }) {
       "/models/ufo.glb",
 
       (gltf) => {
-        ufo = gltf.scene;
+        ufo =
+          gltf.scene;
 
         ufo.scale.set(
           0.02,
@@ -292,9 +350,11 @@ function Visualizer({ analyzer, currentPage }) {
     const entranceDuration =
       4.0;
 
-    let entranceStartTime = null;
+    let entranceStartTime =
+      null;
 
-    let entranceComplete = false;
+    let entranceComplete =
+      false;
 
     let animationFrameId;
 
@@ -309,7 +369,9 @@ function Visualizer({ analyzer, currentPage }) {
 
       let rms = 0;
 
-      if (analyzer?.current) {
+      if (
+        analyzer?.current
+      ) {
         const values =
           analyzer.current.getValue();
 
@@ -325,54 +387,43 @@ function Visualizer({ analyzer, currentPage }) {
             values[i];
         }
 
-        rms = Math.sqrt(
-          sum / values.length
-        );
+        rms =
+          Math.sqrt(
+            sum /
+              values.length
+          );
       }
+
+      const held =
+        notesRef.current.length;
 
       const starSpeed =
         0.0005 +
-        rms * 0.003;
+        rms * 0.003 +
+        held * 0.0016;
 
-      stars.rotation.y +=
+      starGroup.rotation.y +=
         starSpeed;
 
-      stars.rotation.x +=
+      starGroup.rotation.x +=
         0.0002 +
-        rms * 0.001;
+        rms * 0.001 +
+        held * 0.0006;
 
-      if (photoStarRef.current) {
+      if (
+        photoStarRef.current
+      ) {
         const photoStar =
           photoStarRef.current;
 
-        photoStar.visible = true;
-
-        photoStar.position.x =
-          Math.sin(
-            t * 0.45
-          ) * 7;
-
-        photoStar.position.y =
-          Math.cos(
-            t * 0.35
-          ) * 3.5;
-
-        photoStar.position.z =
-          -10 +
-          Math.sin(
-            t * 0.22
-          ) * 2;
-
-        photoStar.rotation.z =
-          Math.sin(
-            t * 0.5
-          ) * 0.15;
+        photoStar.visible =
+          true;
 
         const twinkle =
-          0.75 +
+          0.8 +
           Math.sin(
-            t * 2.2
-          ) * 0.25;
+            t * 1.8
+          ) * 0.2;
 
         photoStar.material.opacity =
           twinkle;
@@ -381,7 +432,8 @@ function Visualizer({ analyzer, currentPage }) {
       if (ufo) {
         if (
           !entranceComplete &&
-          transitionRef.current === null
+          transitionRef.current ===
+            null
         ) {
           if (
             entranceStartTime ===
@@ -399,7 +451,9 @@ function Visualizer({ analyzer, currentPage }) {
             elapsed /
             entranceDuration;
 
-          if (progress >= 1) {
+          if (
+            progress >= 1
+          ) {
             progress = 1;
 
             entranceComplete =
@@ -437,8 +491,7 @@ function Visualizer({ analyzer, currentPage }) {
           ufo.rotation.z =
             Math.sin(
               t * 0.8
-            ) *
-            0.08;
+            ) * 0.08;
         }
 
         else if (
@@ -459,7 +512,9 @@ function Visualizer({ analyzer, currentPage }) {
             elapsed /
             duration;
 
-          if (progress >= 1) {
+          if (
+            progress >= 1
+          ) {
             progress = 1;
           }
 
@@ -509,7 +564,7 @@ function Visualizer({ analyzer, currentPage }) {
             ufo.rotation.y +=
               0.02;
 
-            stars.rotation.y +=
+            starGroup.rotation.y +=
               0.002;
 
             if (
@@ -565,13 +620,12 @@ function Visualizer({ analyzer, currentPage }) {
             ufo.rotation.z =
               Math.sin(
                 t * 5
-              ) *
-              0.08;
+              ) * 0.08;
 
             ufo.rotation.y +=
               0.02;
 
-            stars.rotation.y +=
+            starGroup.rotation.y +=
               0.002;
 
             if (
@@ -613,7 +667,10 @@ function Visualizer({ analyzer, currentPage }) {
 
         else {
           const audioMovement =
-            rms * 2;
+            rms * 2 +
+            (held > 0
+              ? 0.45
+              : 0);
 
           ufo.position.y =
             Math.sin(
@@ -628,19 +685,20 @@ function Visualizer({ analyzer, currentPage }) {
           ufo.rotation.z =
             Math.sin(
               t * 0.6
-            ) *
-            0.06;
+            ) * 0.06;
 
           ufo.rotation.y +=
             0.002 +
-            rms * 0.01;
+            rms * 0.01 +
+            held * 0.02;
 
           const color =
             new THREE.Color();
 
           const hue =
             (0.55 +
-              rms * 0.8) %
+              rms * 0.8 +
+              held * 0.08) %
             1;
 
           color.setHSL(
