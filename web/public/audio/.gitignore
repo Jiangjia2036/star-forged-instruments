@@ -1,7 +1,7 @@
 # Backing tracks are large binaries, and commercial recordings should not be
 # committed to a shared repository. README.md is kept; audio is not.
 *.wav
-*.mp3
+# *.mp3
 *.m4a
 *.aac
 *.ogg

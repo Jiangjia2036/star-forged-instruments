@@ -1,6 +1,7 @@
 """Polyphonic synthio engine with a clean sine default and safe chord gain."""
 
 import array
+import math
 
 import synthio
 
@@ -10,6 +11,28 @@ from waveforms import WAVES
 
 
 _GAIN_RAMP = array.array("h", (0, 32767))
+
+_LN2 = math.log(2.0)
+
+
+def _loudness_weight(frequency):
+    """Relative level for a note, 0-1, compensating small-speaker roll-off.
+
+    1.0 at and below LOW_BOOST_REF_HZ, sloping down above it. Attenuating
+    the top is the only direction available: the low notes already sit at
+    the peak budget, so the tilt has to come out of the treble.
+    """
+
+    if config.LOW_BOOST_DB_PER_OCTAVE <= 0 or frequency <= config.LOW_BOOST_REF_HZ:
+        return 1.0
+
+    octaves = math.log(frequency / config.LOW_BOOST_REF_HZ) / _LN2
+    decibels = min(
+        config.LOW_BOOST_DB_PER_OCTAVE * octaves,
+        config.LOW_BOOST_MAX_DB,
+    )
+
+    return 10.0 ** (-decibels / 20.0)
 
 
 def _envelope(release_s):
@@ -49,30 +72,60 @@ class SynthEngine:
     def held_note_count(self):
         return len(self._voices)
 
-    def _level_per_note(self):
-        count = len(self._voices)
-        if count <= 0:
-            return 0.0
-        if count == 1:
-            return config.SINGLE_NOTE_LEVEL
+    def _targets(self):
+        """Per-voice level, keyed by button index.
 
-        # synthio mixes all notes before anything in effects.py can process
-        # them. CircuitPython 10.2 applies its own hard-knee compression when
-        # that sum exceeds roughly 85% of full scale. Dividing by sqrt(N)
-        # kept average loudness high but repeatedly crossed that knee, which
-        # created the gritty intermodulation heard with two buttons.
-        #
-        # Sharing one peak budget between the voices keeps every possible
-        # phase alignment clean. The downstream volume knob then changes the
-        # already-clean chord as a whole.
-        return config.CHORD_TOTAL_LEVEL / count
+        synthio mixes all notes before anything in effects.py can process
+        them. CircuitPython 10.2 applies its own hard-knee compression when
+        that sum exceeds roughly 85% of full scale. Dividing by sqrt(N)
+        kept average loudness high but repeatedly crossed that knee, which
+        created the gritty intermodulation heard with two buttons.
+
+        Sharing one peak budget between the voices keeps every possible
+        phase alignment clean. The downstream volume knob then changes the
+        already-clean chord as a whole.
+
+        The loudness tilt divides that same budget unevenly instead of
+        enlarging it, so the headroom guarantee is unchanged: a chord still
+        sums to exactly CHORD_TOTAL_LEVEL, and a single note still peaks at
+        SINGLE_NOTE_LEVEL.
+
+        Nothing outside this method scales these levels. A previous version
+        let the flex sensor's wah trim them for its resonance, which made
+        the instrument quieter whenever the strip moved; the flex sensor now
+        fires a sound effect and leaves the synth alone.
+        """
+
+        weights = {
+            index: _loudness_weight(voice[0].frequency)
+            for index, voice in self._voices.items()
+        }
+
+        if not weights:
+            return {}
+
+        if len(weights) == 1:
+            index = next(iter(weights))
+            return {index: config.SINGLE_NOTE_LEVEL * weights[index]}
+
+        total = sum(weights.values())
+        if total <= 0:
+            return {index: 0.0 for index in weights}
+
+        return {
+            index: config.CHORD_TOTAL_LEVEL * weight / total
+            for index, weight in weights.items()
+        }
 
     def _rebalance(self):
-        target = self._level_per_note()
-        for _note, gain, _tremolo, _vibrato in self._voices.values():
+        targets = self._targets()
+
+        for index, voice in self._voices.items():
+            gain = voice[1]
             current = gain.value
+
             gain.offset = current
-            gain.scale = target - current
+            gain.scale = targets[index] - current
             gain.retrigger()
 
     def _new_tremolo(self):

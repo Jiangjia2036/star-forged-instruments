@@ -43,6 +43,10 @@ tracks = TrackPlayer(chain.track_voice)
 web_sustain = False
 web_echo = False
 
+# The flex strip fires the alien sound effect. Toggleable from the website
+# so it can be silenced without reflashing.
+flex_enabled = config.FLEX_ENABLED
+
 
 def apply_sustain():
     engine.sustain = inputs.sustain_on or web_sustain
@@ -57,7 +61,7 @@ def apply_echo():
 
 
 def handle(line):
-    global web_echo, web_sustain
+    global web_echo, web_sustain, flex_enabled
 
     if line.startswith("CMD_ON_"):
         name = line[7:]
@@ -133,6 +137,14 @@ def handle(line):
                 ",".join(engine.note_names),
             )
         )
+        link.send(
+            "STATUS flex=%d enabled=%s cooldown=%.1fs"
+            % (
+                inputs.flex_raw(),
+                "ON" if flex_enabled else "OFF",
+                inputs.flex_cooldown_left,
+            )
+        )
 
     elif line == "TRACK_LIST":
         link.send("TRACKS_" + "|".join(tracks.list_tracks()))
@@ -149,6 +161,10 @@ def handle(line):
             link.send("FX_TONE_OK")
         except ValueError:
             pass
+
+    elif line.startswith("FX_FLEX_"):
+        flex_enabled = line[8:] == "ON"
+        link.send("FX_FLEX_%s_OK" % ("ON" if flex_enabled else "OFF"))
 
 
 link.send("PICO_READY")
@@ -186,6 +202,13 @@ while True:
     volume = inputs.volume()
     chain.set_volume(volume)
 
+    # Bending the strip fires the alien effect out of the instrument's own
+    # speaker, through the mixer's second voice so it layers over whatever
+    # is being played rather than interrupting it.
+    if flex_enabled and inputs.flex_triggered():
+        link.send("FLEX_ALIEN")
+        tracks.play(config.FLEX_SOUND, link)
+
     tracks.tick(link)
 
     # Diagnostic broadcast. The website logs every line it receives, so this
@@ -194,11 +217,12 @@ while True:
     if config.STATUS_BROADCAST_S and now - last_status >= config.STATUS_BROADCAST_S:
         last_status = now
         link.send(
-            "STATUS pot=%.3f mix0=%.3f voices=%d loop=%.1fms"
+            "STATUS pot=%.3f mix0=%.3f voices=%d flex=%d loop=%.1fms"
             % (
                 volume,
                 chain.mixer.voice[0].level,
                 engine.held_note_count,
+                inputs.flex_raw(),
                 (now - loop_prev) * 1000.0,
             )
         )

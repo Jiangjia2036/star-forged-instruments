@@ -18,7 +18,7 @@ SAMPLE_RATE = 44100
 # margin for rounding. Do not change chord gain back to budget / sqrt(N): it
 # makes two-button combinations louder by driving that compressor, and that
 # loudness is the harsh/gritty sound we are trying to remove.
-SINGLE_NOTE_LEVEL = 0.87 # was 0.82 before
+SINGLE_NOTE_LEVEL = 0.85 # was 0.82 before
 CHORD_TOTAL_LEVEL = 0.79 # 0.82 before
 
 # Shared buffer size for every effect stage. Larger is safer against
@@ -67,6 +67,81 @@ TONE_Q = 0.707
 # Gain changes ramp inside synthio instead of jumping and creating a click.
 GAIN_RAMP_HZ = 40.0
 
+
+# Flex sensor -----------------------------------------------------------
+
+# Bending the strip fires an alien sound effect. The board reports the bend
+# over USB as FLEX_ALIEN and the website plays the file, for two reasons:
+# the clip is 44.1 kHz stereo and this mixer is mono with no resampler, and
+# keeping recordings off the board leaves its ~2.5 MB of flash for firmware.
+#
+# This deliberately does NOT touch the synth. An earlier version swept the
+# tone filter as a wah, but its resonance had to be paid for out of the note
+# levels, which made the whole instrument quieter whenever the strip moved.
+#
+# Set False if no strip is fitted. An unconnected ADC pin floats, and its
+# noise would fire the effect on its own.
+FLEX_ENABLED = True
+
+# Raw 16-bit endpoints of the divider, carried over from the legacy build's
+# measured values. Recalibrate if a normal bend does not reach the trigger:
+# set STATUS_BROADCAST_S = 2.0, watch the flex= field in the browser console
+# while moving the strip fully each way, and put those two numbers here.
+FLEX_RAW_MIN = 2368
+FLEX_RAW_MAX = 8548
+
+# One-pole smoothing on the raw read, as with the volume knob.
+FLEX_SMOOTHING = 0.18
+
+# How far the strip must travel from where it has been resting before it
+# counts as a deliberate bend, as a fraction of the calibrated span. Well
+# above the ADC's own jitter so the effect never fires on its own.
+FLEX_TRIGGER_DELTA = 0.35
+
+# How close to rest it must return before it can fire again. Lower than the
+# trigger so a hand wavering near the threshold cannot machine-gun it.
+FLEX_RELEASE_DELTA = 0.15
+
+# Silence enforced after a trigger. The clip runs about 8.5 seconds, but a
+# retrigger restarts it from the top, so this is a floor on how often the
+# effect can start rather than a guarantee it has finished.
+FLEX_COOLDOWN_S = 3.0
+
+# How quickly the resting reference follows a strip that is being held in a
+# new position, per loop. At the ~2 ms loop this is a time constant of about
+# four seconds: slow enough that a normal bend is still measured against the
+# true rest, fast enough that a strip left in a new shape recovers instead
+# of latching the trigger off.
+FLEX_REST_TRACKING = 0.0005
+
+# The clip itself, in TRACK_DIR on the board. It plays through the mixer's
+# second voice, so it layers over whatever is being played rather than
+# cutting the notes off.
+#
+# It MUST be mono at SAMPLE_RATE - this mixer has no resampler and no
+# downmixer. The source download was 44.1 kHz stereo; PicoCode/audio/alien.wav
+# is the converted mono version.
+FLEX_SOUND = "alien.wav"
+
+
+# Low note compensation --------------------------------------------------
+
+# A small speaker moves far less air at C4 (262 Hz) than at G5 (784 Hz), so
+# equal digital amplitudes do not arrive as equal loudness - the bottom of
+# the range sounds weak even though its samples are as large as the top's.
+#
+# The fix has to be a tilt rather than a boost. SINGLE_NOTE_LEVEL is already
+# at the ceiling, so there is no headroom above C4 to raise it into; what is
+# available is room below the high notes. Notes above the reference are
+# attenuated on a per-octave slope, which lifts the low end *relative* to
+# the rest. Recover absolute loudness with the volume knob, or with the
+# amplifier's GAIN pin (see WIRING.md).
+#
+# Set LOW_BOOST_DB_PER_OCTAVE = 0 to switch this off entirely.
+LOW_BOOST_REF_HZ = 262.0
+LOW_BOOST_DB_PER_OCTAVE = 3.0
+LOW_BOOST_MAX_DB = 6.0
+
 # Ignore tiny ADC changes before writing a new mixer level. This prevents
 # potentiometer noise from becoming low-level amplitude modulation.
 VOLUME_CHANGE_MIN = 0.005
@@ -94,6 +169,7 @@ BUTTON_PINS = (
 ECHO_SWITCH_PIN = board.GP19       # retained for wiring compatibility
 SUSTAIN_SWITCH_PIN = board.GP20
 VOLUME_PIN = board.A1              # GP27
+FLEX_PIN = board.A0                # GP26
 
 # A major triad arpeggiated across two octaves: root, third, fifth, then the
 # same three an octave higher.

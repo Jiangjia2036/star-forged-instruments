@@ -1,7 +1,7 @@
 # Converted backing tracks. Big binaries, and often commercial recordings
 # that should not live in a shared repository. Keep the source files and the
 # ffmpeg command (see ../AUDIO.md) rather than the output.
-*.wav
+# *.wav
 # *.mp3
 # *.m4a
 # *.mp4

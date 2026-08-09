@@ -56,6 +56,25 @@ If a chord still crackles with effects off, reduce `CHORD_TOTAL_LEVEL` or
 lower the MAX98357A gain. A GAIN pin tied to GND selects 15 dB and can overload
 the amplifier/speaker even when the digital samples themselves do not clip.
 
+## Low note compensation
+
+A small speaker moves far less air at C4 (262 Hz) than at G5 (784 Hz), so
+equal sample amplitudes do not arrive at the ear as equal loudness. This is
+why C4 sounded weak next to the top of the range.
+
+It cannot be fixed by making C4 louder. `SINGLE_NOTE_LEVEL` is already at the
+ceiling, so the correction is a tilt: notes above `LOW_BOOST_REF_HZ` are
+attenuated on a `LOW_BOOST_DB_PER_OCTAVE` slope, capped at
+`LOW_BOOST_MAX_DB`. At the defaults G5 sits 4.7 dB below C4, which lifts the
+low end *relative* to the rest.
+
+The peak budget is untouched — the tilt divides it unevenly rather than
+enlarging it, so a chord still sums to `CHORD_TOTAL_LEVEL` and a single note
+still peaks at `SINGLE_NOTE_LEVEL`. Overall loudness therefore drops a
+little; recover it with the volume knob or the amplifier's GAIN pin.
+
+Set `LOW_BOOST_DB_PER_OCTAVE = 0` to disable.
+
 ## Optional effects
 
 - Wave selection provides sine, square, and saw tables.
