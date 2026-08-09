@@ -110,6 +110,29 @@ def handle(line):
         web_sustain = line[11:] == "ON"
         apply_sustain()
 
+    elif line == "STATUS":
+        # Diagnostic: report the actual levels so a volume complaint can be
+        # traced to the pot, the mixer, or the per-note balance.
+        link.send(
+            "STATUS pot=%.3f mix0=%.3f mix1=%.3f voices=%d wave=%s"
+            % (
+                inputs.volume(),
+                chain.mixer.voice[0].level,
+                chain.mixer.voice[1].level,
+                engine.held_note_count,
+                engine.wave_name,
+            )
+        )
+        link.send(
+            "STATUS echo=%s chorus=%s reverb=%s notes=%s"
+            % (
+                chain.echo_on,
+                chain.chorus_on,
+                chain.reverb_on,
+                ",".join(engine.note_names),
+            )
+        )
+
     elif line == "TRACK_LIST":
         link.send("TRACKS_" + "|".join(tracks.list_tracks()))
 
@@ -133,6 +156,8 @@ link.send("TUNED_" + "_".join(engine.note_names))
 
 vol_reported = -1
 last_vol_report = 0.0
+last_status = 0.0
+loop_prev = time.monotonic()
 
 while True:
     for index, pressed in inputs.button_events():
@@ -162,6 +187,21 @@ while True:
 
     tracks.tick(link)
 
+    # Diagnostic broadcast. The website logs every line it receives, so this
+    # exposes the real levels while the browser is the thing connected -
+    # something a simulated connection over this same port cannot show.
+    if config.STATUS_BROADCAST_S and now - last_status >= config.STATUS_BROADCAST_S:
+        last_status = now
+        link.send(
+            "STATUS pot=%.3f mix0=%.3f voices=%d loop=%.1fms"
+            % (
+                volume,
+                chain.mixer.voice[0].level,
+                engine.held_note_count,
+                (now - loop_prev) * 1000.0,
+            )
+        )
+
     if now - last_vol_report >= config.VOL_REPORT_S:
         last_vol_report = now
         pct = int(volume * 100)
@@ -169,4 +209,5 @@ while True:
             vol_reported = pct
             link.send("VOL_%d" % min(100, pct))
 
+    loop_prev = now
     time.sleep(0.002)
