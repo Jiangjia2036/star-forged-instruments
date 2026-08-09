@@ -8,7 +8,7 @@ function TeamPage({ onBack }) {
       description:
         "Worked on the physical instrument, electronics, and Pico integration.",
       image:
-        "https://placehold.co/300x300",
+        "/photos/Ethan.jpg",
     },
     {
       name: "Grayson Pressutti",

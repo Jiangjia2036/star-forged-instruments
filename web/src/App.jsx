@@ -52,6 +52,8 @@ function App() {
   const [picoTracks, setPicoTracks] = useState([]);
   const [picoTrackPlaying, setPicoTrackPlaying] = useState(null);
 
+  // Each section has its own hash URL. The UFO visualizer stays mounted behind
+  // every view, while the keyboard remains exclusive to the Perform page.
   const [page, setPage] = useState(pageFromHash);
 
   useEffect(() => {
@@ -419,6 +421,8 @@ function App() {
 
       return;
     }
+
+    // Keep unknown TRACK_* / PICO_READY / debug lines harmlessly ignored.
   };
 
   const connectPico = async () => {
@@ -438,6 +442,7 @@ function App() {
           onConnect: () => {
             setPicoConnected(true);
 
+            // Keep the Pico track list available for the SongPlayer UI.
             setTimeout(() => {
               serialRef.current?.send(
                 "TRACK_LIST"
@@ -450,7 +455,6 @@ function App() {
             updateActiveNotes([]);
           },
         });
-
       await serialRef.current.connect();
     } catch (err) {
       console.log(
@@ -501,6 +505,8 @@ function App() {
     );
   };
 
+  // The site can follow a stable key detected in the backing track. This
+  // retunes the instrument so the buttons stay aligned with the song.
   const handleDetectedKey = (name) => {
     setRoot((current) => {
       if (current === name) {
@@ -525,6 +531,8 @@ function App() {
     setSongProgress(0);
   };
 
+  // Retune the instrument whenever the key, octave or button layout changes,
+  // so the physical buttons always play the scale shown on screen.
   const tuneCommand =
     "TUNE_" +
     picoNotes.join("_");

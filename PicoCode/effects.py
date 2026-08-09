@@ -2,19 +2,18 @@
 
 Nothing here touches audio samples from Python; every stage runs compiled.
 
-    synth ─→ [chorus] ─→ [echo] ─→ [reverb] ─→ mixer.voice[0] ─┐
-    WAV / MP3 ────────────────────────────────→ mixer.voice[1] ─┤
-                                                                ↓
-                                        tone ─→ limiter ─→ I2S
+    synth -> [chorus] -> [echo] -> [reverb] -> tone -> voice[0] --+
+    WAV / MP3 ---------------------------------------> voice[1] --+-> I2S
 
 Bracketed stages are built lazily and inserted only while enabled. The tone
-filter and limiter are always present and always last:
+filter is always last on the synth branch:
 
-  tone     a gentle low pass. Pure tones carry no harmonics, so anything up
-           in the top octaves is artefact, not music. Removing it is what
-           takes the grit off a chord.
-  limiter  audiofilters.Distortion in CLIP mode with soft_clip - a real soft
-           knee limiter, so peaks round over instead of squaring off.
+  tone     a gentle low pass that keeps square and saw harmonics from making
+           chords overly bright. Sine remains the clean default waveform.
+
+There is deliberately no Distortion block pretending to be a limiter. The
+synth engine keeps its mix below synthio's own compressor knee, which avoids
+creating distortion in the first place.
 """
 
 import audiodelays
@@ -44,7 +43,7 @@ class EffectChain:
         self.mixer.voice[0].level = config.SYNTH_LEVEL
         self.mixer.voice[1].level = config.TRACK_LEVEL
 
-        # Master tone control. A Biquad whose cutoff can be changed live.
+        # Synth tone control. A Biquad whose cutoff can be changed live.
         self._tone_filter = synthio.Biquad(
             synthio.FilterMode.LOW_PASS,
             frequency=config.TONE_HZ,
@@ -53,20 +52,6 @@ class EffectChain:
 
         self.tone = audiofilters.Filter(
             filter=self._tone_filter,
-            mix=1.0,
-            buffer_size=config.EFFECT_BUFFER,
-            sample_rate=config.SAMPLE_RATE,
-            channel_count=1,
-            bits_per_sample=16,
-            samples_signed=True,
-        )
-
-        self.limiter = audiofilters.Distortion(
-            mode=audiofilters.DistortionMode.CLIP,
-            soft_clip=True,
-            drive=config.LIMIT_DRIVE,
-            pre_gain=config.LIMIT_PRE_GAIN_DB,
-            post_gain=config.LIMIT_POST_GAIN_DB,
             mix=1.0,
             buffer_size=config.EFFECT_BUFFER,
             sample_rate=config.SAMPLE_RATE,
@@ -84,8 +69,12 @@ class EffectChain:
         self.echo_on = False
         self.reverb_on = False
 
-        # Master output is fixed; only the synth side gets rewired
-        self._out.play(self.limiter.play(self.tone.play(self.mixer)))
+        self._master_level = 1.0
+
+        # The mixer output is fixed; only the synth side gets rewired. The
+        # backing track bypasses the synth tone filter so music files retain
+        # their full frequency range.
+        self._out.play(self.mixer)
 
         self._route_synth()
 
@@ -141,7 +130,7 @@ class EffectChain:
     def _route_synth(self):
         """Rebuild the synth side of the chain into mixer voice 0."""
 
-        for stage in (self._chorus, self._echo, self._reverb):
+        for stage in (self._chorus, self._echo, self._reverb, self.tone):
             if stage is not None:
                 try:
                     stage.stop()
@@ -159,6 +148,7 @@ class EffectChain:
         if self.reverb_on:
             node = self._get_reverb().play(node)
 
+        node = self.tone.play(node)
         self.mixer.voice[0].play(node)
 
     # ---- controls ----
@@ -178,11 +168,21 @@ class EffectChain:
             self.reverb_on = on
             self._route_synth()
 
+    @property
+    def tone_hz(self):
+        """Where the low pass currently sits."""
+        return self._tone_filter.frequency
+
     def set_tone_hz(self, hz):
         """Master low pass cutoff. Lower is warmer and removes more grit."""
         self._tone_filter.frequency = max(200, min(18000, hz))
 
     def set_volume(self, level):
         """Master level from the potentiometer."""
+        level = max(0.0, min(1.0, level))
+        if abs(level - self._master_level) < config.VOLUME_CHANGE_MIN:
+            return
+
+        self._master_level = level
         self.mixer.voice[0].level = level * config.SYNTH_LEVEL
         self.mixer.voice[1].level = level * config.TRACK_LEVEL

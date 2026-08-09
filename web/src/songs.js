@@ -69,49 +69,23 @@ export const SONGS = [
     ]
   ),
 
-  makeSong(
-    "ember-drift",
-    "Ember Drift (Encore I)",
-    84,
-    [
-      ["E4", 2], ["C4", 1], ["C4", 1],
-      ["E4", 2], [null, 1], ["C4", 1],
-      ["E4", 1], ["E4", 1], ["C4", 2],
-      ["C4", 4],
-
-      ["C4", 1], ["E4", 1], ["C4", 1], ["C4", 1],
-      ["E4", 2], ["C4", 2],
-      ["C4", 1], ["C4", 1], ["E4", 1], ["E4", 1],
-      ["C4", 4],
-    ]
-  ),
-
-  makeSong(
-    "last-light",
-    "Last Light (Encore II)",
-    120,
-    [
-      ["C4", 1], ["C4", 1], ["E4", 2],
-      ["E4", 1], ["E4", 1], ["C4", 2],
-      ["E4", 1], ["C4", 1], ["C4", 1], ["E4", 1],
-      ["E4", 4],
-
-      ["E4", 1], ["C4", 1], ["E4", 1], ["E4", 1],
-      ["E4", 2], ["C4", 2],
-      ["C4", 1], ["E4", 1], ["E4", 1], ["C4", 1],
-      ["C4", 4],
-    ]
-  ),
-
   // Backing track with no chart - it just plays and you improvise over it.
-  // The file lives in web/public/audio, so it plays through the browser.
-  // For speaker playback, put a 22 kHz mono WAV on the Pico instead.
+  // The file lives in web/public/audio and plays through the computer's
+  // speakers, as every backing track does.
   makeSong(
     "dark-horse",
     "Dark Horse (backing)",
     132,
     [],
     { audioUrl: "/audio/dark-horse.m4a" }
+  ),
+
+  makeSong(
+    "x-files",
+    "The X-Files (theme)",
+    120,
+    [],
+    { audioUrl: "/audio/x-files-theme.mp3" }
   ),
 ];
 
