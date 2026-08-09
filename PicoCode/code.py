@@ -40,15 +40,26 @@ chain = EffectChain(engine.source, i2s)
 # Backing tracks share the output through the mixer's second voice
 tracks = TrackPlayer(chain.track_voice)
 
-web_sustain = False
 
 # The flex strip fires the alien sound effect. Toggleable from the website
 # so it can be silenced without reflashing.
 flex_enabled = config.FLEX_ENABLED
 
 
-def apply_sustain():
-    engine.sustain = inputs.sustain_on or web_sustain
+def set_sustain(on):
+    """One sustain state, two controls: the GP20 pedal and the website.
+
+    Last writer wins, same as echo. The old version OR'd the pedal with the
+    web toggle, so with the on-screen Sustain switched on, releasing the
+    pedal could never drop the dampers. Every change is reported, so the
+    site's Sustain light follows the pedal too.
+    """
+
+    if on == engine.sustain:
+        return
+
+    engine.sustain = on
+    link.send("SUSTAIN_%s" % ("ON" if on else "OFF"))
 
 
 def set_echo(on):
@@ -70,7 +81,7 @@ def set_echo(on):
 
 
 def handle(line):
-    global web_sustain, flex_enabled
+    global flex_enabled
 
     if line.startswith("CMD_ON_"):
         name = line[7:]
@@ -120,8 +131,7 @@ def handle(line):
         set_echo(line[8:] == "ON")
 
     elif line.startswith("FX_SUSTAIN_"):
-        web_sustain = line[11:] == "ON"
-        apply_sustain()
+        set_sustain(line[11:] == "ON")
 
     elif line == "STATUS":
         # Diagnostic: report the actual levels so a volume complaint can be
@@ -202,8 +212,9 @@ while True:
 
     for which, closed in inputs.switch_events():
         if which == Inputs.SWITCH_SUSTAIN:
-            apply_sustain()
-            link.send("SUSTAIN_%s" % ("ON" if engine.sustain else "OFF"))
+            # The pedal position is authoritative when it moves, and
+            # set_sustain reports the change itself.
+            set_sustain(closed)
         else:
             # The switch position is authoritative when it moves: up or
             # down lands exactly there, whatever the site said earlier.
