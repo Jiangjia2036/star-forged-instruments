@@ -31,7 +31,19 @@ function App() {
   if (synth.current === null) {
     delay.current = new Tone.FeedbackDelay("8n", 0.4);
     analyzer.current = new Tone.Analyser("waveform", 256);
-    synth.current = new Tone.PolySynth(Tone.Synth).connect(delay.current);
+
+    // Keep the existing audio chain and analyser intact.
+    // The web synth uses the same release behavior as the Pico:
+    // 110 ms normally, with Keyboard switching it to 2.6 s for Sustain.
+    synth.current = new Tone.PolySynth(Tone.Synth, {
+      envelope: {
+        attack: 0.01,
+        decay: 0.1,
+        sustain: 0.75,
+        release: 0.11,
+      },
+    }).connect(delay.current);
+
     delay.current.connect(analyzer.current);
     analyzer.current.toDestination();
   }
@@ -714,6 +726,7 @@ function App() {
             <Keyboard
               synth={synth}
               activeNotes={activeNotes}
+              sustain={sustain}
               root={root}
               setRoot={setRoot}
               octave={octave}

@@ -21,6 +21,7 @@ function hueFor(note) {
 function Keyboard({
   synth,
   activeNotes,
+  sustain,
   root,
   setRoot,
   octave,
@@ -39,10 +40,22 @@ function Keyboard({
 
   const startNote = async (note) => {
     await synth.current.context.resume();
+
     synth.current.triggerAttack(note);
   };
 
   const stopNote = (note) => {
+    // Normal release:
+    // 1 seconds when Sustain is OFF
+    //
+    // Sustain release:
+    // 6seconds when Sustain is ON
+    synth.current.set({
+      envelope: {
+        release: sustain ? 6: 1,
+      },
+    });
+
     synth.current.triggerRelease(note);
   };
 
@@ -85,7 +98,9 @@ function Keyboard({
           -
         </button>
 
-        <span className="octave-value">{octave}</span>
+        <span className="octave-value">
+          {octave}
+        </span>
 
         <button
           className="scale-btn"
@@ -118,24 +133,37 @@ function Keyboard({
           return (
             <button
               key={note + i}
-              style={{ "--glow-hue": hueFor(note) }}
-              className={
-                [
-                  "key",
-                  activeNotes.includes(note) ? "pico-active" : "",
-                  btn ? "key-mapped" : "",
-                ]
-                  .filter(Boolean)
-                  .join(" ")
-              }
+              style={{
+                "--glow-hue": hueFor(note),
+              }}
+              className={[
+                "key",
+                activeNotes.includes(note)
+                  ? "pico-active"
+                  : "",
+                btn
+                  ? "key-mapped"
+                  : "",
+              ]
+                .filter(Boolean)
+                .join(" ")}
               onMouseDown={() => startNote(note)}
               onMouseUp={() => stopNote(note)}
               onMouseLeave={(e) => {
-                if (e.buttons) stopNote(note);
+                if (e.buttons) {
+                  stopNote(note);
+                }
               }}
             >
-              {btn && <span className="key-badge">{btn}</span>}
-              <span className="key-name">{note}</span>
+              {btn && (
+                <span className="key-badge">
+                  {btn}
+                </span>
+              )}
+
+              <span className="key-name">
+                {note}
+              </span>
             </button>
           );
         })}
