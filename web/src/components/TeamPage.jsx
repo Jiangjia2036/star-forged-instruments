@@ -12,17 +12,17 @@ function TeamPage({ onBack }) {
     },
     {
       name: "Grayson Pressutti",
-      role: "Audio / DSP",
+      role: "CAD / Design",
       description:
-        "Worked on sound generation, audio processing, and instrument effects.",
+        "Hi, I'm Grayson Pressutti! I'm a mechanical engineering major transferring from Clovis Community College in Fresno. I'm a percussionist, and I've been getting better at art and music production in my spare time!",
       image:
         "/photos/Grayson.jpg",
     },
     {
       name: "Alejandro Padilla",
-      role: "Web / UI",
+      role: "Web Integration / Pico Code / Larper",
       description:
-        "Worked on the interactive website, user interface, and Pico-Web integration.",
+        "My name is Alejandro Padilla, I'm a transfer from Mt. San Antonio College. I am currently majoring in Electrical Engineering. Currently what I like to do is larp on insta & Linkedin and mostly doing whatever is interesting.",
       image:
         "/photos/Alejandro.png",
     },
@@ -30,7 +30,7 @@ function TeamPage({ onBack }) {
       name: "Jiaxiong Jiang",
       role: "3D / Visuals",
       description:
-        "My name is Jiaxiong Jiang, a transfer from Skyline college which locate in Bay Area. I am majoring in Computer engineering.I like to play games and play the guitar in my free time.",
+        "My name is Jiaxiong Jiang, a transfer from Skyline college which locate in Bay Area. I am majoring in Computer engineering. I like to play games and play the guitar in my free time.",
       image:
         "/photos/Jiaxiong.jpeg",
     },
@@ -83,12 +83,8 @@ function TeamPage({ onBack }) {
 
         <section className="members-section">
           <div className="section-heading">
-            <p className="team-label">
-              THE CREW
-            </p>
-
             <h2>
-              Our Team
+              The Crew
             </h2>
           </div>
 
