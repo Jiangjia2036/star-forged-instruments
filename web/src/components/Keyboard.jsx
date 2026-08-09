@@ -14,8 +14,12 @@ const noteHues = {
 };
 
 function hueFor(note) {
-  const base = noteHues[note[0]] ?? 205;
-  return note.includes("#") ? base + 18 : base;
+  const base =
+    noteHues[note[0]] ?? 205;
+
+  return note.includes("#")
+    ? base + 18
+    : base;
 }
 
 function Keyboard({
@@ -30,32 +34,58 @@ function Keyboard({
   setSpread,
   buttonNotes,
 }) {
-  const notes = scaleNotes(root, octave, 2);
+  const notes =
+    scaleNotes(root, octave, 2);
 
   const startNote = async (note) => {
     await synth.current.context.resume();
 
     synth.current.triggerAttack(note);
+
+    // Let the visualizer know that the browser keyboard is being played.
+    window.dispatchEvent(
+      new CustomEvent(
+        "star-forged-note-on",
+        {
+          detail: { note },
+        }
+      )
+    );
   };
 
   const stopNote = (note) => {
     // Normal release:
-    // 1 seconds when Sustain is OFF
+    // 1 second when Sustain is OFF
     //
     // Sustain release:
-    // 6seconds when Sustain is ON
+    // 6 seconds when Sustain is ON
     synth.current.set({
       envelope: {
-        release: sustain ? 6: 1,
+        release: sustain
+          ? 6
+          : 1,
       },
     });
 
     synth.current.triggerRelease(note);
+
+    window.dispatchEvent(
+      new CustomEvent(
+        "star-forged-note-off",
+        {
+          detail: { note },
+        }
+      )
+    );
   };
 
   return (
     <section className="keyboard-section">
       <div className="keyboard-controls">
+        <span className="label">
+          Key
+        </span>
+
         {ROOTS.map((name) => (
           <button
             key={name}
@@ -64,7 +94,9 @@ function Keyboard({
                 ? "scale-btn active"
                 : "scale-btn"
             }
-            onClick={() => setRoot(name)}
+            onClick={() =>
+              setRoot(name)
+            }
           >
             {name}
           </button>
@@ -72,12 +104,19 @@ function Keyboard({
 
         <span className="divider" />
 
-        <span className="label">Octave</span>
+        <span className="label">
+          Octave
+        </span>
 
         <button
           className="scale-btn"
           onClick={() =>
-            setOctave(Math.max(2, octave - 1))
+            setOctave(
+              Math.max(
+                2,
+                octave - 1
+              )
+            )
           }
         >
           -
@@ -90,7 +129,12 @@ function Keyboard({
         <button
           className="scale-btn"
           onClick={() =>
-            setOctave(Math.min(6, octave + 1))
+            setOctave(
+              Math.min(
+                6,
+                octave + 1
+              )
+            )
           }
         >
           +
@@ -98,7 +142,9 @@ function Keyboard({
 
         <span className="divider" />
 
-        <span className="label">Buttons</span>
+        <span className="label">
+          Buttons
+        </span>
 
         {SPREADS.map((name) => (
           <button
@@ -108,7 +154,9 @@ function Keyboard({
                 ? "scale-btn active"
                 : "scale-btn"
             }
-            onClick={() => setSpread(name)}
+            onClick={() =>
+              setSpread(name)
+            }
           >
             {name}
           </button>
@@ -117,17 +165,24 @@ function Keyboard({
 
       <div className="keyboard">
         {notes.map((note, i) => {
-          const btn = buttonFor(note, buttonNotes);
+          const btn =
+            buttonFor(
+              note,
+              buttonNotes
+            );
 
           return (
             <button
               key={note + i}
               style={{
-                "--glow-hue": hueFor(note),
+                "--glow-hue":
+                  hueFor(note),
               }}
               className={[
                 "key",
-                activeNotes.includes(note)
+                activeNotes.includes(
+                  note
+                )
                   ? "pico-active"
                   : "",
                 btn
@@ -136,8 +191,12 @@ function Keyboard({
               ]
                 .filter(Boolean)
                 .join(" ")}
-              onMouseDown={() => startNote(note)}
-              onMouseUp={() => stopNote(note)}
+              onMouseDown={() =>
+                startNote(note)
+              }
+              onMouseUp={() =>
+                stopNote(note)
+              }
               onMouseLeave={(e) => {
                 if (e.buttons) {
                   stopNote(note);
