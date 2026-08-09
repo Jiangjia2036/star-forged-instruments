@@ -277,6 +277,31 @@ button:hover {
   font-size: 13px;
 }
 
+/* Leaves the instrument entirely for the team view */
+.page-btn {
+  padding: 8px 16px;
+
+  font-size: 13px;
+
+  background: rgba(91, 140, 255, 0.12);
+  border-color: rgba(91, 140, 255, 0.35);
+}
+
+.page-btn:hover {
+  background: rgba(91, 140, 255, 0.22);
+  border-color: rgba(91, 140, 255, 0.55);
+  transform: translateY(-1px);
+}
+
+/* The team view sits above the starfield and scrolls on its own */
+.app > .team-page {
+  position: relative;
+  z-index: 10;
+
+  overflow-y: auto;
+  max-height: 100vh;
+}
+
 /* ============================================================
    Stage - the performance panel
    ============================================================ */
