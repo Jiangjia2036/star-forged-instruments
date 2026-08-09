@@ -52,40 +52,27 @@ function makeSong(id, title, bpm, sequence, extra = {}) {
 }
 
 export const SONGS = [
-  makeSong(
-    "forge-call",
-    "Forge Call",
-    100,
-    [
-      ["C4", 1], ["E4", 1], ["C4", 1], [null, 1],
-      ["C4", 1], ["E4", 1], ["C4", 2],
-      ["E4", 1], ["C4", 1], ["E4", 1], [null, 1],
-      ["E4", 1], ["C4", 1], ["C4", 2],
-
-      ["E4", 1], ["E4", 1], ["C4", 1], ["C4", 1],
-      ["E4", 2], ["C4", 2],
-      ["C4", 1], ["E4", 1], ["C4", 1], ["E4", 1],
-      ["C4", 4],
-    ]
-  ),
-
-  // Backing track with no chart - it just plays and you improvise over it.
-  // The file lives in web/public/audio and plays through the computer's
+  // Backing tracks with no chart - they just play and you improvise over
+  // them. The files live in web/public/audio and play through the computer's
   // speakers, as every backing track does.
-  makeSong(
-    "dark-horse",
-    "Dark Horse (backing)",
-    132,
-    [],
-    { audioUrl: "/audio/dark-horse.m4a" }
-  ),
-
+  //
+  // Nothing in the setlist currently has a chart, so the cue panel stays in
+  // its free-play state. Pass a sequence as the fourth argument to bring the
+  // press-this-key cues back for a song.
   makeSong(
     "x-files",
     "The X-Files (theme)",
     120,
     [],
     { audioUrl: "/audio/x-files-theme.mp3" }
+  ),
+
+  makeSong(
+    "singularity-hack",
+    "Singularity Hack 2026",
+    120,
+    [],
+    { audioUrl: "/audio/SingularityHAcK2026.mp3" }
   ),
 ];
 

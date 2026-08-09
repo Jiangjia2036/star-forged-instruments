@@ -62,34 +62,35 @@ export function scaleNotes(root, octave, octaveCount = 2) {
   return notes;
 }
 
-// Which three notes the physical buttons play.
+// Which notes the twelve physical buttons play.
 //
-// GP16 and GP17 are the two currently wired to the board, so the first two
-// entries are what you can actually play. GP18 is the third voice.
-//
-// "chord"  - root / third / fifth, so the wired pair gives C and E in C major
-// "steps"  - first three scale degrees, adjacent notes for melodies
-// "wide"   - root / third / root an octave up, for cross-octave chords
-export const SPREADS = ["chord", "steps", "wide"];
+// Only one layout now. The "chord" and "wide" spreads existed to make six
+// buttons useful by skipping degrees - a triad reaches further than six
+// adjacent notes do. Twelve buttons already span a full scale from the root
+// to the fifth above the octave, and a skipping layout across twelve keys
+// would run past 2 kHz, where this speaker and the tone filter give up.
+// Use the octave +/- control to move the range instead.
+export const SPREADS = ["steps"];
 
-// Six buttons are wired: GP16, GP17, GP18, GP12, GP11, GP10. Count must match
-// BUTTON_PINS and DEFAULT_NOTES in PicoCode/config.py, because the Pico
-// rejects a TUNE_ command whose note count differs from its button count.
-export function buttonNotes(root, octave, spread) {
+// Twelve buttons, in BUTTON_PINS order - which is pitch order, not pin
+// order. See the table above BUTTON_PINS in PicoCode/config.py.
+//
+// Indices 9 and 10 are deliberately out of pitch order: the board has F
+// assigned to GP4 and E to GP5, so index 9 carries the higher of that pair.
+// This has to match DEFAULT_NOTES in config.py, or the buttons swap note the
+// moment the website connects and retunes the board.
+//
+// Must return exactly twelve notes. The Pico rejects a TUNE_ command whose
+// note count differs from its button count.
+export function buttonNotes(root, octave) {
   const notes = scaleNotes(root, octave, 2);
 
-  if (spread === "steps") {
-    // adjacent scale degrees, for melodies
-    return [notes[0], notes[1], notes[2], notes[3], notes[4], notes[5]];
-  }
-
-  if (spread === "wide") {
-    // spread across both octaves for cross-octave chords
-    return [notes[0], notes[2], notes[7], notes[9], notes[11], notes[14]];
-  }
-
-  // the triad arpeggiated across two octaves
-  return [notes[0], notes[2], notes[4], notes[7], notes[9], notes[11]];
+  return [
+    notes[0], notes[1], notes[2], notes[3], notes[4],
+    notes[5], notes[6], notes[7], notes[8],
+    notes[10], notes[9],
+    notes[11],
+  ];
 }
 
 // Map a note name to the physical button that currently plays it, or null.

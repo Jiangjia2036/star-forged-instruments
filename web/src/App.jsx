@@ -108,13 +108,12 @@ function App() {
 
   const [root, setRoot] = useState("C");
   const [octave, setOctave] = useState(4);
-  const [spread, setSpread] = useState("chord");
+  // Twelve keys span a full scale, so there is only one layout left to pick.
+  // Kept as state because the Keyboard still renders the selector, and to
+  // leave room for a second layout later.
+  const [spread, setSpread] = useState("steps");
 
-  const picoNotes = computeButtonNotes(
-    root,
-    octave,
-    spread
-  );
+  const picoNotes = computeButtonNotes(root, octave);
 
   // A board plugged into ANOTHER computer, reaching us through the mirror.
   // Kept apart from picoConnected, which means "this browser owns the port".

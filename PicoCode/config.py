@@ -162,14 +162,43 @@ I2S_DATA = board.GP13
 
 # Physical controls -----------------------------------------------------
 
-# Button N plays DEFAULT_NOTES[N], so order here maps to note order.
-# New buttons are appended, which leaves the existing keys on their notes.
+# Button N plays DEFAULT_NOTES[N], so a pin's note is whatever sits at the
+# same index in the note list.
+#
+# Twelve keys: the six original buttons plus the six added on GP0-GP5. The
+# pins are listed in PITCH order rather than pin order, so the note list
+# below reads as a plain rising scale:
+#
+#   index  pin    note   assignment
+#   -----  -----  -----  ----------------------------------------
+#     0    GP16    C4    original button
+#     1    GP17    D4    original button
+#     2    GP18    E4    original button
+#     3    GP12    F4    original button
+#     4    GP11    G4    original button
+#     5    GP0     A4    <- A on GP0
+#     6    GP1     B4    <- B on GP1
+#     7    GP2     C5    <- C on GP2
+#     8    GP3     D5    <- D on GP3
+#     9    GP4     F5    <- F on GP4
+#    10    GP5     E5    <- E on GP5
+#    11    GP10    G5    original button, keeps the G5 it always had
+#
+# GP4 and GP5 are the one place where pitch does not rise with the sequence.
+# buttonNotes() in web/src/scales.js swaps the same two positions, so a TUNE_
+# from the website lands the same way round as these boot notes.
 BUTTON_PINS = (
     board.GP16,
     board.GP17,
     board.GP18,
     board.GP12,
     board.GP11,
+    board.GP0,
+    board.GP1,
+    board.GP2,
+    board.GP3,
+    board.GP4,
+    board.GP5,
     board.GP10,
 )
 ECHO_SWITCH_PIN = board.GP19       # retained for wiring compatibility
@@ -177,9 +206,18 @@ SUSTAIN_SWITCH_PIN = board.GP20
 VOLUME_PIN = board.A1              # GP27
 FLEX_PIN = board.A0                # GP26
 
-# A major triad arpeggiated across two octaves: root, third, fifth, then the
-# same three an octave higher.
-DEFAULT_NOTES = ["C4", "E4", "G4", "C5", "E5", "G5"]
+# One continuous scale across all twelve keys, C4 up to G5, in BUTTON_PINS
+# order. F and E are swapped at indices 9 and 10 to match GP4 and GP5.
+#
+# Only what the board boots with: the website retunes it with TUNE_ as soon
+# as it connects, from buttonNotes() in web/src/scales.js. Keep the two in
+# step or the buttons change note the moment the site connects.
+DEFAULT_NOTES = [
+    "C4", "D4", "E4", "F4", "G4",
+    "A4", "B4", "C5", "D5",
+    "F5", "E5",
+    "G5",
+]
 
 
 # Click-free envelope ---------------------------------------------------
