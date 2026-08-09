@@ -1,9 +1,4 @@
-"""Configuration for the bare synthio instrument.
-
-The default audio path is deliberately minimal: synthio feeds I2SOut directly.
-There is no mixer, filter, or backing-track stage. Echo is inserted only while
-the Echo control is on and is completely bypassed when it is off.
-"""
+"""Configuration for the modular CircuitPython synth and track player."""
 
 import board
 
@@ -14,29 +9,17 @@ import board
 # the previous 22.05 kHz engine while remaining easy for the RP2350 to render.
 SAMPLE_RATE = 44100
 
-# One held note can be loud. For a chord, this is the TOTAL level shared by
-# every held note.
+# One held note can be loud. For a chord, CHORD_TOTAL_LEVEL is the clean peak
+# budget shared by every held note.
 #
-# The chord budget used to be well under full scale because nothing caught
-# peaks. There is now a real limiter in the chain (see below), so chords can
-# run much closer to full level and let it round the peaks - which is why
-# CHORD_TOTAL_LEVEL is no longer punishing.
-SINGLE_NOTE_LEVEL = 0.90
-CHORD_TOTAL_LEVEL = 0.88
-
-
-# Limiter ---------------------------------------------------------------
-
-# audiofilters.Distortion in CLIP mode with soft_clip is CircuitPython's own
-# soft knee limiter, running in compiled code. It sits last in the chain and
-# rounds peaks rather than chopping them square, which is what made chords
-# sound harsh before.
-#
-# drive stays at 0 because we want limiting, not colouration. Raise it only
-# if you actually want an overdriven tone.
-LIMIT_DRIVE = 0.0
-LIMIT_PRE_GAIN_DB = 0.0
-LIMIT_POST_GAIN_DB = 0.0
+# CircuitPython 10.2's synthio has a built-in hard-knee compressor at about
+# 0.855 full scale. An effect placed after synthio cannot undo the colour that
+# compressor adds. Both values therefore stay below its knee, with a little
+# margin for rounding. Do not change chord gain back to budget / sqrt(N): it
+# makes two-button combinations louder by driving that compressor, and that
+# loudness is the harsh/gritty sound we are trying to remove.
+SINGLE_NOTE_LEVEL = 0.82
+CHORD_TOTAL_LEVEL = 0.82
 
 # Shared buffer size for every effect stage. Larger is safer against
 # dropouts, smaller is lower latency.
@@ -83,7 +66,10 @@ TONE_Q = 0.707
 
 # Gain changes ramp inside synthio instead of jumping and creating a click.
 GAIN_RAMP_HZ = 40.0
-VOLUME_CHANGE_MIN = 0.015
+
+# Ignore tiny ADC changes before writing a new mixer level. This prevents
+# potentiometer noise from becoming low-level amplitude modulation.
+VOLUME_CHANGE_MIN = 0.005
 
 
 # I2S pins ---------------------------------------------------------------
@@ -167,7 +153,6 @@ VOL_SMOOTHING = 0.08
 
 # Diagnostics ------------------------------------------------------------
 
-# Seconds between automatic STATUS lines. The website logs everything it
-# receives, so this makes the real levels visible in the browser console
-# while the browser is the thing connected. Set to 0 to switch off.
-STATUS_BROADCAST_S = 2.0
+# Seconds between automatic STATUS lines. Leave disabled for normal playing;
+# set to 2.0 temporarily when diagnosing levels in the browser console.
+STATUS_BROADCAST_S = 0.0

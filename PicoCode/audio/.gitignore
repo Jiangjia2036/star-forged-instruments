@@ -2,7 +2,7 @@
 # that should not live in a shared repository. Keep the source files and the
 # ffmpeg command (see ../AUDIO.md) rather than the output.
 *.wav
-*.mp3
-*.m4a
-*.mp4
+# *.mp3
+# *.m4a
+# *.mp4
 !.gitignore
