@@ -37,15 +37,41 @@ CHUNK_SAMPLES = 250
 # Output Level
 # ------------------------------------------------------------
 
-# Peak of a single oscillator, out of 32767. Three oscillators plus the echo
-# tail can exceed full scale, so the output stage clips rather than wrapping.
-# A single note is the common case, and it should be LOUD.
-AMPLITUDE = 10000
+# Peak of a single oscillator, out of 32767.
+#
+# Voices SUM, so the mix has to leave room for chords. The old pairing of
+# AMPLITUDE 10000 with a 1.5x makeup gain put two notes at 92% of full scale
+# with no margin at all - any attack transient or echo tail crossed the line,
+# and hard clipping squares off the waveform into harsh intermodulation.
+# That is what made two notes sound rough.
+AMPLITUDE = 11000
 
 # Makeup gain applied after the volume pot, 8.8 fixed point.
-# 256 = 1.0x, 384 = 1.5x, 512 = 2.0x.
-# Lower this first if chords sound gritty.
-OUTPUT_GAIN = 384
+# 256 = 1.0x, 288 = 1.125x, 384 = 1.5x.
+OUTPUT_GAIN = 288
+
+
+# ------------------------------------------------------------
+# Soft Limiter
+# ------------------------------------------------------------
+
+# Below the knee the signal is untouched, so single notes are completely
+# clean. Above it, peaks are compressed toward full scale instead of being
+# chopped flat. A chord gets quietly squeezed rather than distorted, which
+# is how a real mixer behaves and the reason multiple notes stay smooth.
+#
+# This is what makes scaling to 16 buttons practical: 16 voices at full
+# amplitude would be 6x over full scale, and no amount of gain trimming
+# fixes that without making one note inaudible. The limiter absorbs it.
+SOFT_KNEE = 20000
+SOFT_SLOPE = 40
+
+# With these numbers one note is untouched, and up to eight sounding together
+# still land inside full scale. Beyond that the limiter runs out and clips,
+# so if you routinely hold more than eight keys, drop AMPLITUDE rather than
+# lowering SOFT_SLOPE - a shallower slope makes a chord barely louder than a
+# single note, which sounds lifeless.
+MAX_CLEAN_VOICES = 8
 
 # Floor for the volume pot so an unwired or dirty pot still makes sound.
 # Set to 0 if you want the pot to be able to silence the instrument.
@@ -83,6 +109,93 @@ TRACK_DIR = "/audio"
 # 22 chunks is roughly 250 ms.
 POS_REPORT_CHUNKS = 22
 
+# The potentiometer is the only thing that sets volume. The website just
+# displays where it is, so the level always matches the physical knob.
+#
+# ADC readings jitter by a few counts even when nothing moves, so a change
+# is only reported once it exceeds the deadband, and never more often than
+# the interval. Without both, the knob would flood the serial link.
+VOL_REPORT_CHUNKS = 8
+VOL_DEADBAND = 2
+
+
+# ------------------------------------------------------------
+# Envelope (ADSR)
+# ------------------------------------------------------------
+
+# Borrowed from CircuitPython's synthio.Envelope. Gating an oscillator
+# straight on and off leaves a step discontinuity in the waveform, which the
+# speaker reproduces as a click on every press and release. Ramping the
+# amplitude instead removes the click and gives the instrument an attack,
+# which is most of what makes a synth sound played rather than switched.
+#
+# Same five parameters synthio uses, in milliseconds and 0-1 levels.
+
+ENV_MAX = 65536
+
+ENV_ATTACK_MS = 8
+ENV_DECAY_MS = 140
+ENV_SUSTAIN = 0.78
+ENV_RELEASE_MS = 110
+
+# With the sustain pedal down, a released key rings out instead of stopping,
+# the way a piano behaves when the dampers are lifted. Long enough to let
+# notes overlap into a chord, short enough that the instrument still breathes.
+ENV_PEDAL_RELEASE_MS = 2600
+
+# Milliseconds of audio produced per loop iteration
+CHUNK_MS = CHUNK_SAMPLES * 1000.0 / SAMPLE_RATE
+
+ENV_SUSTAIN_LEVEL = int(ENV_MAX * ENV_SUSTAIN)
+
+ENV_ATTACK_STEP = int(ENV_MAX * CHUNK_MS / ENV_ATTACK_MS)
+ENV_DECAY_STEP = int((ENV_MAX - ENV_SUSTAIN_LEVEL) * CHUNK_MS / ENV_DECAY_MS)
+ENV_RELEASE_STEP = int(ENV_MAX * CHUNK_MS / ENV_RELEASE_MS)
+ENV_PEDAL_STEP = int(ENV_MAX * CHUNK_MS / ENV_PEDAL_RELEASE_MS)
+
+
+def env_advance(level, gate, pedal):
+    """One chunk of ADSR movement for a single voice.
+
+    `pedal` is the sustain switch. Holding it swaps the fast release for a
+    long decay, so lifting a key leaves the note ringing.
+    """
+
+    if gate:
+
+        if level < ENV_MAX:
+            level += ENV_ATTACK_STEP
+            if level > ENV_MAX:
+                level = ENV_MAX
+
+        elif level > ENV_SUSTAIN_LEVEL:
+            level -= ENV_DECAY_STEP
+            if level < ENV_SUSTAIN_LEVEL:
+                level = ENV_SUSTAIN_LEVEL
+
+    else:
+
+        if level > 0:
+            level -= ENV_PEDAL_STEP if pedal else ENV_RELEASE_STEP
+            if level < 0:
+                level = 0
+
+    return level
+
+
+# ------------------------------------------------------------
+# Vibrato
+# ------------------------------------------------------------
+
+# synthio drives pitch with an LFO on Note.bend. Same idea here: an LFO
+# nudges the phase increment, which shifts pitch rather than volume.
+# Depth 100 is about a semitone either side.
+VIB_MAX_RATIO = 0.06
+
+# synthio recalculates its LFOs every 256 samples. A chunk here is 250
+# samples, so updating the modulation once per chunk lands at essentially
+# the same resolution for free.
+
 
 # ------------------------------------------------------------
 # Flex Filter Range
@@ -109,9 +222,9 @@ PHASE_MASK = (TABLE_LEN << 16) - 1
 # Serial Protocol
 # ============================================================
 
-# Note names sent to the website for btn_1, btn_2, btn_3. Rewritten by the
+# Note names sent to the website for btn_1, btn_2 and btn_3. Rewritten by the
 # TUNE command so NOTE_* messages always match what the buttons actually play.
-NOTES = ["C4", "D4", "E4"]
+NOTES = ["C4", "E4", "G4"]
 
 SEMITONES = {
     "C": 0,
@@ -206,13 +319,20 @@ bclk = Pin(14)
 lrc = Pin(15)
 din = Pin(13)
 
-# Buttons
+# Note buttons. GP16 and GP17 are the two currently wired to the board and
+# play C and E. GP18 is the third voice, ready for when that key is soldered.
 btn_1 = Pin(16, Pin.IN, Pin.PULL_UP)
 btn_2 = Pin(17, Pin.IN, Pin.PULL_UP)
 btn_3 = Pin(18, Pin.IN, Pin.PULL_UP)
 
 # Echo switch
 echo_switch = Pin(19, Pin.IN, Pin.PULL_UP)
+
+# Sustain pedal / damper switch.
+# Wire exactly like the note buttons: one leg to GP20, the other to any GND.
+# The internal pull-up means no resistor is needed - the pin reads 1 when
+# open and 0 when the switch is closed.
+sustain_switch = Pin(20, Pin.IN, Pin.PULL_UP)
 
 # Flex sensor
 flex_sensor = ADC(26)
@@ -245,15 +365,42 @@ audio_out = I2S(
 # Memory Allocation
 # ============================================================
 
-print("Building sine table...")
+print("Building wave tables...")
 
-sine_table = array.array('h', [0] * TABLE_LEN)
+# Three timbres. Switching between them is a distinct sound change that is
+# neither pitch nor volume, which is what the brief asks for.
+# Square and saw carry far more harmonic energy than a sine, so they are
+# scaled back to keep the perceived loudness even across the three.
+WAVE_NAMES = ["SINE", "SQUARE", "SAW"]
 
-for n in range(TABLE_LEN):
-    sine_table[n] = int(
-        AMPLITUDE
-        * math.sin(2 * math.pi * n / TABLE_LEN)
-    )
+WAVES = []
+
+for _kind in WAVE_NAMES:
+
+    _table = array.array('h', [0] * TABLE_LEN)
+
+    for n in range(TABLE_LEN):
+
+        _phase = n / TABLE_LEN
+
+        if _kind == "SINE":
+            _value = math.sin(2 * math.pi * _phase)
+            _trim = 1.0
+
+        elif _kind == "SQUARE":
+            _value = 1.0 if _phase < 0.5 else -1.0
+            _trim = 0.6
+
+        else:
+            _value = 2.0 * _phase - 1.0
+            _trim = 0.7
+
+        _table[n] = int(AMPLITUDE * _value * _trim)
+
+    WAVES.append(_table)
+
+# The LFO reads the sine table regardless of the selected voice timbre
+sine_table = WAVES[0]
 
 
 # 6600 / 22000 = 0.3 second echo delay
@@ -280,9 +427,12 @@ wav_buf = array.array('h', [0] * CHUNK_SAMPLES)
 
 @micropython.native
 def render_chunk(
-    play_1,
-    play_2,
-    play_3,
+    amp_1,
+    amp_2,
+    amp_3,
+    step_1,
+    step_2,
+    step_3,
     echo_active,
     vol_multiplier,
     alpha,
@@ -294,19 +444,21 @@ def render_chunk(
     inc_3,
     delay_ptr,
     y_prev,
-    track_on
+    track_on,
+    tbl
 ):
 
     # Local aliases avoid a global lookup per sample
     buf = out_buf
     db = delay_buffer
-    tbl = sine_table
     wavb = wav_buf
 
     mask = TABLE_MASK
     pmask = PHASE_MASK
     gain = OUTPUT_GAIN
     tgain = TRACK_GAIN
+    knee = SOFT_KNEE
+    slope = SOFT_SLOPE
 
     for i in range(CHUNK_SAMPLES):
 
@@ -314,16 +466,23 @@ def render_chunk(
         # A. Dry signal
         # ------------------------------------------------
 
+        # Each voice is scaled by its own envelope, which slides smoothly
+        # across the chunk instead of jumping at the boundary.
+
         dry_signal = 0
 
-        if play_1:
-            dry_signal += tbl[(ph_1 >> 16) & mask]
+        if amp_1 > 0:
+            dry_signal += (tbl[(ph_1 >> 16) & mask] * (amp_1 >> 8)) >> 8
 
-        if play_2:
-            dry_signal += tbl[(ph_2 >> 16) & mask]
+        if amp_2 > 0:
+            dry_signal += (tbl[(ph_2 >> 16) & mask] * (amp_2 >> 8)) >> 8
 
-        if play_3:
-            dry_signal += tbl[(ph_3 >> 16) & mask]
+        if amp_3 > 0:
+            dry_signal += (tbl[(ph_3 >> 16) & mask] * (amp_3 >> 8)) >> 8
+
+        amp_1 += step_1
+        amp_2 += step_2
+        amp_3 += step_3
 
         # Oscillators run continuously so a key never restarts mid-cycle
         ph_1 = (ph_1 + inc_1) & pmask
@@ -335,10 +494,20 @@ def render_chunk(
         # B. Flex-controlled filter
         # ------------------------------------------------
 
+        # Coefficient is pre-shifted so the product stays a small int.
+        #
+        # alpha * (dry - y_prev) reached 2.9 billion with two notes held,
+        # past the ~2^30 small int limit, so every sample allocated a big
+        # integer on the heap and the garbage collector ran during audio
+        # rendering. One note stayed under the limit, which is exactly why
+        # single notes sounded fine and chords did not.
+        #
+        # (alpha >> 8) / 256 is the same coefficient as alpha / 65536, just
+        # quantised to 256 steps - inaudible for a filter cutoff.
         y_prev += (
-            alpha
+            (alpha >> 8)
             * (dry_signal - y_prev)
-        ) >> 16
+        ) >> 8
 
 
         # ------------------------------------------------
@@ -390,21 +559,29 @@ def render_chunk(
             pre_vol_out += (wavb[i] * tgain) >> 8
 
 
+        # Same range problem: pre_vol_out * vol_multiplier crossed 2^30 as
+        # soon as a second note was added.
         final_out = (
             pre_vol_out
-            * vol_multiplier
-        ) >> 16
+            * (vol_multiplier >> 8)
+        ) >> 8
 
         final_out = (final_out * gain) >> 8
 
-        # Final safety clip. The echo branch clipped its own feedback, but
-        # nothing clipped the dry path, so a loud chord could wrap around
-        # into harsh distortion or overflow the int16 pack below.
-        if final_out > 32767:
-            final_out = 32767
+        # Soft knee limiter. Chopping peaks flat turns a chord into a square
+        # wave full of intermodulation; compressing them keeps it musical.
+        # One note never reaches the knee, so it stays untouched.
+        if final_out > knee:
+            final_out = knee + (((final_out - knee) * slope) >> 8)
 
-        elif final_out < -32768:
-            final_out = -32768
+            if final_out > 32767:
+                final_out = 32767
+
+        elif final_out < -knee:
+            final_out = -knee - (((-final_out - knee) * slope) >> 8)
+
+            if final_out < -32768:
+                final_out = -32768
 
         struct.pack_into('<h', buf, i * 2, final_out)
 
@@ -454,6 +631,41 @@ def run_dsp_engine():
 
     rx = ""
 
+    # Per-voice envelope levels, 0 to ENV_MAX
+    amp_1 = 0
+    amp_2 = 0
+    amp_3 = 0
+
+    # Effects controlled from the website
+    wave_index = 0
+
+    vib_depth = 0
+    vib_rate = 5.5
+    vib_tick = 0
+
+    web_echo = False
+    web_sustain = False
+
+    prev_sustain = False
+
+    # Tremolo is computed once per chunk rather than per sample. At 88 chunks
+    # a second that is far above the few Hz an LFO needs, and it costs the
+    # inner loop nothing.
+    trem_depth = 0
+    trem_rate = 5.0
+    trem_tick = 0
+
+    # Last volume percentage reported to the website
+    vol_reported = -1
+    vol_counter = 0
+
+    # Smoothed ADC values. A bare read jitters by a few counts every chunk,
+    # and feeding that straight into the filter cutoff and the output level
+    # modulates the tone 88 times a second, which is audible as a warble.
+    # A simple one pole average settles it without adding noticeable lag.
+    vol_smooth = 0
+    alpha_smooth = ALPHA_MIN
+
     # Backing track streaming state
     track_file = None
     track_on = False
@@ -498,6 +710,49 @@ def run_dsp_engine():
                     remote[0] = False
                     remote[1] = False
                     remote[2] = False
+
+                elif rx.startswith("FX_WAVE_"):
+
+                    name = rx[8:]
+
+                    if name in WAVE_NAMES:
+                        wave_index = WAVE_NAMES.index(name)
+                        print("FX_WAVE_%s_OK" % name)
+
+                elif rx.startswith("FX_VIB_"):
+
+                    try:
+                        depth = int(rx[7:])
+                    except ValueError:
+                        depth = -1
+
+                    if 0 <= depth <= 100:
+                        vib_depth = depth
+                        print("FX_VIB_%d_OK" % depth)
+
+                elif rx.startswith("FX_ECHO_"):
+
+                    web_echo = rx[8:] == "ON"
+                    print("FX_ECHO_%s_OK" % ("ON" if web_echo else "OFF"))
+
+                elif rx.startswith("FX_SUSTAIN_"):
+
+                    web_sustain = rx[11:] == "ON"
+                    print(
+                        "FX_SUSTAIN_%s_OK"
+                        % ("ON" if web_sustain else "OFF")
+                    )
+
+                elif rx.startswith("FX_TREM_"):
+
+                    try:
+                        depth = int(rx[8:])
+                    except ValueError:
+                        depth = -1
+
+                    if 0 <= depth <= 100:
+                        trem_depth = depth
+                        print("FX_TREM_%d_OK" % depth)
 
                 elif rx == "TRACK_LIST":
                     print("TRACKS_" + "|".join(list_tracks()))
@@ -598,12 +853,51 @@ def run_dsp_engine():
         play_2 = press_2 or remote[1]
         play_3 = press_3 or remote[2]
 
-        echo_active = not echo_switch.value()
+        # Physical switch or the website can each turn the echo on
+        echo_active = (not echo_switch.value()) or web_echo
 
-        vol_multiplier = volume_pot.read_u16()
+        # Damper pedal: physical switch or the website
+        sustain_held = (not sustain_switch.value()) or web_sustain
 
-        if vol_multiplier < VOL_MIN:
-            vol_multiplier = VOL_MIN
+        vol_raw = volume_pot.read_u16()
+
+        if vol_raw < VOL_MIN:
+            vol_raw = VOL_MIN
+
+        vol_smooth += (vol_raw - vol_smooth) >> 3
+        vol_multiplier = vol_smooth
+
+        # Tell the website where the knob is sitting. One way only - the
+        # site never sets the level, it just shows it.
+        vol_counter += 1
+
+        if vol_counter >= VOL_REPORT_CHUNKS:
+            vol_counter = 0
+
+            vol_percent = (vol_multiplier * 100) >> 16
+
+            if vol_percent > 100:
+                vol_percent = 100
+
+            if abs(vol_percent - vol_reported) >= VOL_DEADBAND:
+                vol_reported = vol_percent
+                print("VOL_%d" % vol_percent)
+
+        # Tremolo: one LFO value per chunk, folded into the volume so the
+        # render loop stays untouched.
+        if trem_depth:
+
+            trem_tick += 1
+
+            lfo = math.sin(
+                2 * math.pi * trem_rate
+                * trem_tick * CHUNK_SAMPLES / SAMPLE_RATE
+            )
+
+            # depth 100 swings from full down to silence
+            shaped = 1.0 - (trem_depth / 100.0) * (1.0 - lfo) / 2.0
+
+            vol_multiplier = int(vol_multiplier * shaped)
 
 
         # ====================================================
@@ -629,6 +923,10 @@ def run_dsp_engine():
             prev_echo = echo_active
             print("EFFECT_ECHO_%s" % ("ON" if echo_active else "OFF"))
 
+        if sustain_held != prev_sustain:
+            prev_sustain = sustain_held
+            print("SUSTAIN_%s" % ("ON" if sustain_held else "OFF"))
+
 
         # ====================================================
         # Flex Sensor / Filter
@@ -648,7 +946,10 @@ def run_dsp_engine():
             SENSOR_MAX - SENSOR_MIN
         )
 
-        alpha = ALPHA_MIN + normalized_ratio_scaled
+        alpha_target = ALPHA_MIN + normalized_ratio_scaled
+
+        alpha_smooth += (alpha_target - alpha_smooth) >> 3
+        alpha = alpha_smooth
 
 
         # ====================================================
@@ -688,26 +989,75 @@ def run_dsp_engine():
 
 
         # ====================================================
+        # Envelopes + Vibrato
+        # ====================================================
+
+        # Where each voice's amplitude should land by the end of this chunk
+        next_1 = env_advance(amp_1, play_1, sustain_held)
+        next_2 = env_advance(amp_2, play_2, sustain_held)
+        next_3 = env_advance(amp_3, play_3, sustain_held)
+
+
+        # The renderer walks from the current level to that target one
+        # sample at a time, so there is no step at the chunk boundary
+        step_1 = (next_1 - amp_1) // CHUNK_SAMPLES
+        step_2 = (next_2 - amp_2) // CHUNK_SAMPLES
+        step_3 = (next_3 - amp_3) // CHUNK_SAMPLES
+
+
+        if vib_depth:
+
+            vib_tick += 1
+
+            wobble = math.sin(
+                2 * math.pi * vib_rate
+                * vib_tick * CHUNK_SAMPLES / SAMPLE_RATE
+            )
+
+            bend = 1.0 + (vib_depth / 100.0) * VIB_MAX_RATIO * wobble
+
+            use_1 = int(inc_1 * bend)
+            use_2 = int(inc_2 * bend)
+            use_3 = int(inc_3 * bend)
+
+
+        else:
+            use_1 = inc_1
+            use_2 = inc_2
+            use_3 = inc_3
+
+
+        # ====================================================
         # Render + Send Audio
         # ====================================================
 
         ph_1, ph_2, ph_3, delay_ptr, y_prev = render_chunk(
-            play_1,
-            play_2,
-            play_3,
+            amp_1,
+            amp_2,
+            amp_3,
+            step_1,
+            step_2,
+            step_3,
             echo_active,
             vol_multiplier,
             alpha,
             ph_1,
             ph_2,
             ph_3,
-            inc_1,
-            inc_2,
-            inc_3,
+            use_1,
+            use_2,
+            use_3,
             delay_ptr,
             y_prev,
-            track_on
+            track_on,
+            WAVES[wave_index]
         )
+
+        # Land on the exact envelope targets so rounding in the per-sample
+        # step cannot accumulate drift over time
+        amp_1 = next_1
+        amp_2 = next_2
+        amp_3 = next_3
 
         audio_out.write(out_buf)
 
