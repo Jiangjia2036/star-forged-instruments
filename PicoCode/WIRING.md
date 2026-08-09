@@ -6,6 +6,8 @@ Raspberry Pi Pico 2 W (RP2350) running CircuitPython 10.2.1.
 
 | Pin   | Component            | Mode              | Notes |
 | ----- | -------------------- | ----------------- | ----- |
+| GP10  | Note button 6        | Input, pull-up    | Fifth up — G5 in the key of C |
+| GP11  | Note button 5        | Input, pull-up    | Third up — E5 in the key of C |
 | GP12  | Note button 4        | Input, pull-up    | Octave — C5 in the key of C |
 | GP13  | I2S amp `DIN`        | I2S TX data       | Audio out |
 | GP14  | I2S amp `BCLK`       | I2S bit clock     | |
@@ -20,7 +22,7 @@ Raspberry Pi Pico 2 W (RP2350) running CircuitPython 10.2.1.
 | GND   | Common ground        | —                 | Shared by every switch and the amp |
 | 3V3   | Sensor supply        | —                 | Flex divider and pot high side |
 
-No GPIO is used twice. GP0–GP11 plus GP21–GP22 remain free for the remaining
+No GPIO is used twice. GP0–GP9 plus GP21–GP22 remain free for the remaining
 note buttons needed to reach a full octave.
 
 Adding another button is two edits: append its pin to `BUTTON_PINS` and a

@@ -72,7 +72,7 @@ export function scaleNotes(root, octave, octaveCount = 2) {
 // "wide"   - root / third / root an octave up, for cross-octave chords
 export const SPREADS = ["chord", "steps", "wide"];
 
-// Four buttons are wired: GP16, GP17, GP18, GP12. The count here must match
+// Six buttons are wired: GP16, GP17, GP18, GP12, GP11, GP10. Count must match
 // BUTTON_PINS and DEFAULT_NOTES in PicoCode/config.py, because the Pico
 // rejects a TUNE_ command whose note count differs from its button count.
 export function buttonNotes(root, octave, spread) {
@@ -80,16 +80,16 @@ export function buttonNotes(root, octave, spread) {
 
   if (spread === "steps") {
     // adjacent scale degrees, for melodies
-    return [notes[0], notes[1], notes[2], notes[3]];
+    return [notes[0], notes[1], notes[2], notes[3], notes[4], notes[5]];
   }
 
   if (spread === "wide") {
     // spread across both octaves for cross-octave chords
-    return [notes[0], notes[2], notes[7], notes[9]];
+    return [notes[0], notes[2], notes[7], notes[9], notes[11], notes[14]];
   }
 
-  // root / third / fifth / octave - a major triad plus the octave
-  return [notes[0], notes[2], notes[4], notes[7]];
+  // the triad arpeggiated across two octaves
+  return [notes[0], notes[2], notes[4], notes[7], notes[9], notes[11]];
 }
 
 // Map a note name to the physical button that currently plays it, or null.
