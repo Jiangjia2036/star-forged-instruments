@@ -19,9 +19,14 @@ function Controls({
     <section className="console">
       <div className="fx-group">
         {EFFECTS.map((effect) => {
+          // With a board connected, the Echo light shows the board's actual
+          // echo state - the physical switch and the on-screen click both
+          // land there, and the board reports every change back. Without a
+          // board it falls back to the local selection.
           const lit =
-            selectedEffect === effect ||
-            (effect === "Echo" && picoEcho);
+            effect === "Echo" && picoConnected
+              ? picoEcho
+              : selectedEffect === effect;
 
           return (
             <button

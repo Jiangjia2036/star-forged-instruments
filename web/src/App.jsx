@@ -258,36 +258,55 @@ function App() {
     const depth =
       Math.round(effectStrength);
 
+    // Echo is deliberately absent here. This effect re-runs on every depth
+    // slider move, and blasting FX_ECHO_OFF each time kept overruling the
+    // physical echo switch - the site's light could never follow it. Echo
+    // commands go out only when the on-screen Echo selection actually
+    // changes, in the effect below.
     if (selectedEffect === "Warp") {
       pico.send("FX_WAVE_SAW");
       pico.send("FX_VIB_" + depth);
       pico.send("FX_TREM_0");
-      pico.send("FX_ECHO_OFF");
     } else if (
       selectedEffect === "Echo"
     ) {
       pico.send("FX_WAVE_SINE");
       pico.send("FX_VIB_0");
       pico.send("FX_TREM_0");
-      pico.send("FX_ECHO_ON");
     } else if (
       selectedEffect === "Chorus"
     ) {
       pico.send("FX_WAVE_SQUARE");
       pico.send("FX_VIB_0");
       pico.send("FX_TREM_" + depth);
-      pico.send("FX_ECHO_OFF");
     } else {
       pico.send("FX_WAVE_SINE");
       pico.send("FX_VIB_0");
       pico.send("FX_TREM_0");
-      pico.send("FX_ECHO_OFF");
     }
   }, [
     picoConnected,
     selectedEffect,
     effectStrength
   ]);
+
+  // Selecting or deselecting the on-screen Echo is the only thing that
+  // sends an echo command. The board holds one echo state shared with the
+  // physical switch - last writer wins - and reports every change back as
+  // EFFECT_ECHO_*, which is what lights the button. So the switch and the
+  // site can each turn echo on or off without masking one another.
+  const prevEffectRef = useRef("");
+
+  useEffect(() => {
+    const wasEcho = prevEffectRef.current === "Echo";
+    const isEcho = selectedEffect === "Echo";
+
+    prevEffectRef.current = selectedEffect;
+
+    if (!picoConnected || wasEcho === isEcho) return;
+
+    serialRef.current?.send("FX_ECHO_" + (isEcho ? "ON" : "OFF"));
+  }, [picoConnected, selectedEffect]);
 
   const updateActiveNotes = (notes) => {
     activeNotesRef.current = notes;

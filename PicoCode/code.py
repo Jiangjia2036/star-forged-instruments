@@ -41,7 +41,6 @@ chain = EffectChain(engine.source, i2s)
 tracks = TrackPlayer(chain.track_voice)
 
 web_sustain = False
-web_echo = False
 
 # The flex strip fires the alien sound effect. Toggleable from the website
 # so it can be silenced without reflashing.
@@ -52,16 +51,26 @@ def apply_sustain():
     engine.sustain = inputs.sustain_on or web_sustain
 
 
-def echo_active():
-    return inputs.echo_on or web_echo
+def set_echo(on):
+    """One echo state, two controls: the GP19 switch and the website.
 
+    Last writer wins. The old version OR'd the two sources, which deadlocked:
+    once the site had sent FX_ECHO_ON, the physical switch computed
+    `False or True` on every flip and could never turn echo off - the site's
+    light sat stuck on ON. Now a switch flip and a web command each set the
+    state outright, and every change is reported so the site (and every
+    mirror viewer) shows what the board is actually doing.
+    """
 
-def apply_echo():
-    chain.set_echo(echo_active())
+    if on == chain.echo_on:
+        return
+
+    chain.set_echo(on)
+    link.send("EFFECT_ECHO_%s" % ("ON" if chain.echo_on else "OFF"))
 
 
 def handle(line):
-    global web_echo, web_sustain, flex_enabled
+    global web_sustain, flex_enabled
 
     if line.startswith("CMD_ON_"):
         name = line[7:]
@@ -108,8 +117,7 @@ def handle(line):
             pass
 
     elif line.startswith("FX_ECHO_"):
-        web_echo = line[8:] == "ON"
-        apply_echo()
+        set_echo(line[8:] == "ON")
 
     elif line.startswith("FX_SUSTAIN_"):
         web_sustain = line[11:] == "ON"
@@ -192,13 +200,14 @@ while True:
             engine.note_off(index)
             link.send("NOTE_%s_OFF" % name)
 
-    for which, _closed in inputs.switch_events():
+    for which, closed in inputs.switch_events():
         if which == Inputs.SWITCH_SUSTAIN:
             apply_sustain()
             link.send("SUSTAIN_%s" % ("ON" if engine.sustain else "OFF"))
         else:
-            apply_echo()
-            link.send("EFFECT_ECHO_%s" % ("ON" if echo_active() else "OFF"))
+            # The switch position is authoritative when it moves: up or
+            # down lands exactly there, whatever the site said earlier.
+            set_echo(closed)
 
     for line in link.poll():
         handle(line)
