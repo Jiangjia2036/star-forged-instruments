@@ -12,9 +12,10 @@ import {
 
 // Plays a track and shows the performer what to press.
 //
-// A backing track (mp3/m4a/mp4) plays through the browser, because the Pico
-// can only synthesise its three oscillators - it cannot decode audio. The
-// Pico's speaker provides the beeps you play on top.
+// Every backing track plays through the computer's speakers. The browser
+// decodes the file and is also the only thing that can analyse it, which is
+// what drives the heard-note readout and the automatic key following. The
+// Pico's own speaker carries just the notes you play on the buttons.
 //
 // When a track has an audio file, that file is the clock, so the cues and the
 // progress bar stay locked to the recording.
@@ -26,16 +27,9 @@ function formatTime(seconds) {
 }
 
 function SongPlayer({
-  onNoteOn,
-  onNoteOff,
-  onAllNotesOff,
   onTargetsChange,
   onProgress,
   buttonNotes = [],
-  picoTracks = [],
-  picoTrackPlaying = null,
-  onPlayPicoTrack,
-  onStopPicoTrack,
   onDetectedKey,
 }) {
   // What the site hears in the backing track right now
@@ -52,9 +46,6 @@ function SongPlayer({
   const [playing, setPlaying] = useState(false);
   const [elapsed, setElapsed] = useState(0);
 
-  // "along" - you press the buttons. "auto" - the site drives the Pico.
-  const [mode, setMode] = useState("along");
-
   const tracks = SONGS;
   const track = tracks[Math.min(trackIndex, tracks.length - 1)];
 
@@ -68,25 +59,16 @@ function SongPlayer({
 
   const cbRef = useRef({});
   cbRef.current = {
-    onNoteOn,
-    onNoteOff,
-    onAllNotesOff,
     onTargetsChange,
     onProgress,
     onDetectedKey,
-    mode,
   };
 
   const silenceAll = () => {
     const states = statesRef.current;
 
     notes.forEach((n, i) => {
-      if (states[i] === "on") {
-        states[i] = "done";
-        if (cbRef.current.mode === "auto") {
-          cbRef.current.onNoteOff(n.note);
-        }
-      }
+      if (states[i] === "on") states[i] = "done";
     });
 
     cbRef.current.onTargetsChange([]);
@@ -121,7 +103,6 @@ function SongPlayer({
     setHeardKey(null);
 
     silenceAll();
-    cbRef.current.onAllNotesOff?.();
     setElapsed(0);
     cbRef.current.onProgress(0);
   };
@@ -130,7 +111,6 @@ function SongPlayer({
     return () => {
       if (frameRef.current) cancelAnimationFrame(frameRef.current);
       if (audioRef.current) audioRef.current.pause();
-      cbRef.current.onAllNotesOff?.();
       cbRef.current.onTargetsChange([]);
       cbRef.current.onProgress(0);
     };
@@ -262,20 +242,12 @@ function SongPlayer({
 
       const states = statesRef.current;
       const targets = [];
-      const auto = cbRef.current.mode === "auto";
 
       notes.forEach((n, i) => {
         const end = n.time + n.duration;
 
-        if (states[i] === "pending" && now >= n.time) {
-          states[i] = "on";
-          if (auto) cbRef.current.onNoteOn(n.note);
-        }
-
-        if (states[i] === "on" && now >= end) {
-          states[i] = "done";
-          if (auto) cbRef.current.onNoteOff(n.note);
-        }
+        if (states[i] === "pending" && now >= n.time) states[i] = "on";
+        if (states[i] === "on" && now >= end) states[i] = "done";
 
         if (states[i] === "on") targets.push(n.note);
       });
@@ -333,25 +305,6 @@ function SongPlayer({
         <button className="play-btn" onClick={play}>
           {playing ? "Stop" : "Play"}
         </button>
-
-        <div className="mode-toggle">
-          <button
-            className={mode === "along" ? "mode-btn active" : "mode-btn"}
-            onClick={() => {
-              if (mode === "auto") cbRef.current.onAllNotesOff?.();
-              setMode("along");
-            }}
-          >
-            You play
-          </button>
-
-          <button
-            className={mode === "auto" ? "mode-btn active" : "mode-btn"}
-            onClick={() => setMode("auto")}
-          >
-            Pico plays
-          </button>
-        </div>
 
         <span className="time">
           {formatTime(elapsed)} / {formatTime(shownTotal)}
@@ -430,32 +383,6 @@ function SongPlayer({
             ))}
           </div>
         </>
-      )}
-
-      {/* WAV files stored on the Pico. These come out of the instrument's
-          own speaker, mixed with your beeps, so you can play along. */}
-      {picoTracks.length > 0 && (
-        <div className="pico-tracks">
-          <div className="label">On the instrument</div>
-
-          <div className="pico-track-list">
-            {picoTracks.map((name) => {
-              const active = picoTrackPlaying === name;
-
-              return (
-                <button
-                  key={name}
-                  className={active ? "pico-track active" : "pico-track"}
-                  onClick={() =>
-                    active ? onStopPicoTrack?.() : onPlayPicoTrack?.(name)
-                  }
-                >
-                  {active ? "■" : "▶"} {name.replace(/\.wav$/i, "")}
-                </button>
-              );
-            })}
-          </div>
-        </div>
       )}
 
     </section>

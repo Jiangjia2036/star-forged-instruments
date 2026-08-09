@@ -168,6 +168,11 @@ class EffectChain:
             self.reverb_on = on
             self._route_synth()
 
+    @property
+    def tone_hz(self):
+        """Where the low pass currently sits."""
+        return self._tone_filter.frequency
+
     def set_tone_hz(self, hz):
         """Master low pass cutoff. Lower is warmer and removes more grit."""
         self._tone_filter.frequency = max(200, min(18000, hz))

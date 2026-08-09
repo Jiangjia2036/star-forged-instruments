@@ -53,10 +53,6 @@ function App() {
   // Song progress, surfaced as a bar across the top of the page
   const [songProgress, setSongProgress] = useState(0);
 
-  // WAV backing tracks stored in the Pico's own flash
-  const [picoTracks, setPicoTracks] = useState([]);
-  const [picoTrackPlaying, setPicoTrackPlaying] = useState(null);
-
   // Each section has its own hash URL. The UFO visualizer stays mounted behind
   // every view, while the keyboard remains exclusive to the Perform page.
   const [page, setPage] = useState(pageFromHash);
@@ -226,37 +222,10 @@ function App() {
       return;
     }
 
-    // Backing tracks living in the Pico's flash
-    if (line.startsWith("TRACKS_")) {
-      const names = line
-        .slice(7)
-        .split("|")
-        .filter(Boolean);
-      console.log("Pico tracks:", names);
-      setPicoTracks(names);
-      return;
-    }
-
-    const posMatch = line.match(/^TRACK_POS_(\d+)$/);
-    if (posMatch) {
-      // Position reported by the Pico as it plays, so the bar follows the
-      // speaker instead of a timer that could drift
-      setSongProgress(Math.min(100, Number(posMatch[1])));
-      return;
-    }
-
-    if (line === "TRACK_END" || line === "TRACK_STOPPED") {
-      setPicoTrackPlaying(null);
-      setSongProgress(0);
-      return;
-    }
-
-    if (line.startsWith("TRACK_ERROR_")) {
-      console.log("Pico track error:", line.slice(12));
-      setPicoTrackPlaying(null);
-      return;
-    }
-    // PICO_READY and any debug lines land here
+    // TRACK_* lines are ignored. Backing tracks play through the computer's
+    // speakers now, so the board's own player is never asked to start and
+    // the progress bar is driven by the browser's audio element instead.
+    // PICO_READY and any debug lines land here too.
   };
 
   const connectPico = async () => {
@@ -267,13 +236,7 @@ function App() {
     try {
       serialRef.current = new PicoSerial({
         onLine: handleLine,
-        onConnect: () => {
-          setPicoConnected(true);
-          // ask what backing tracks are on the board
-          setTimeout(() => {
-            serialRef.current?.send("TRACK_LIST");
-          }, 200);
-        },
+        onConnect: () => setPicoConnected(true),
         onDisconnect: () => {
           setPicoConnected(false);
           updateActiveNotes([]);
@@ -290,30 +253,6 @@ function App() {
   };
 
 
-  // Song playback drives the speaker wired to the Pico, so the instrument
-  // itself produces the sound. The browser only shows what to play.
-
-  const songNoteOn = (note) => {
-    console.log("Song:", note, "ON");
-    serialRef.current?.send("CMD_ON_" + note);
-  };
-
-  const songNoteOff = (note) => {
-    serialRef.current?.send("CMD_OFF_" + note);
-  };
-
-  const silenceSongNotes = () => {
-    serialRef.current?.send("CMD_ALLOFF");
-  };
-
-
-  // Backing tracks played by the Pico itself, mixed with your beeps
-  const playPicoTrack = (name) => {
-    console.log("Pico track play:", name);
-    setPicoTrackPlaying(name);
-    serialRef.current?.send("TRACK_PLAY_" + name);
-  };
-
   // The site heard a stable key in the backing track. Following it retunes
   // the instrument automatically, so the buttons always play notes that fit
   // what is coming out of the speakers.
@@ -324,13 +263,6 @@ function App() {
       return name;
     });
   };
-
-  const stopPicoTrack = () => {
-    serialRef.current?.send("TRACK_STOP");
-    setPicoTrackPlaying(null);
-    setSongProgress(0);
-  };
-
 
   // Retune the instrument whenever the key, octave or button layout changes,
   // so the physical buttons always play the scale shown on screen.
@@ -441,16 +373,9 @@ function App() {
         <main className="page-area">
           {page === "perform" && (
             <SongPlayer
-              onNoteOn={songNoteOn}
-              onNoteOff={songNoteOff}
-              onAllNotesOff={silenceSongNotes}
               onTargetsChange={setTargetNotes}
               onProgress={setSongProgress}
               buttonNotes={picoNotes}
-              picoTracks={picoTracks}
-              picoTrackPlaying={picoTrackPlaying}
-              onPlayPicoTrack={playPicoTrack}
-              onStopPicoTrack={stopPicoTrack}
               onDetectedKey={handleDetectedKey}
             />
           )}
