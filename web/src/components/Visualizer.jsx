@@ -5,7 +5,8 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
 function Visualizer({
   analyzer,
   currentPage,
-  activeNotes = []
+  activeNotes = [],
+  musicVolume = 0.1
 }) {
   const mountRef =
     useRef(null);
@@ -13,16 +14,20 @@ function Visualizer({
   const notesRef =
     useRef([]);
 
-// Browser keyboard notes.
-  // Pico notes use activeNotes.
   const browserNotesRef =
     useRef([]);
 
   const visualHeldNotesRef =
     useRef([]);
 
+  const musicVolumeRef =
+    useRef(musicVolume);
+
   notesRef.current =
     activeNotes;
+
+  musicVolumeRef.current =
+    musicVolume;
 
   const sceneRef =
     useRef(null);
@@ -96,8 +101,6 @@ function Visualizer({
   }, [currentPage]);
 
   useEffect(() => {
-    // Listen for browser notes without changing Pico notes.
-
     const handleBrowserNoteOn =
       (event) => {
         const note =
@@ -140,11 +143,8 @@ function Visualizer({
       handleBrowserNoteOff
     );
 
-// Give each new note a new beam direction.
     const handleBeamNoteOn =
       () => {
-        // The next frame detects the new note
-        // and chooses one effect.
       };
 
     window.addEventListener(
@@ -372,33 +372,23 @@ function Visualizer({
 
     let ufo = null;
 
-// UFO beam
     let ufoBeam = null;
     let ufoBeamGlow = null;
     let ufoBeamMaterial = null;
     let ufoBeamGlowMaterial = null;
 
-// Silver laser beam
     let forwardBeam = null;
     let forwardBeamMaterial = null;
     let forwardBeamGlow = null;
     let forwardBeamGlowMaterial = null;
 
-// Random UFO effect.
-    // One effect happens for each note:
-    // laser, beam, jump, rush, or flyaway.
     let randomUfoEffect = "none";
     let randomUfoEffectStart = 0;
 
-// Star reaction during rush.
-    // Only the stars are changed.
     let starRushIntensity = 0;
 
     let ufoBasePosition =
       new THREE.Vector3(0, 0, -30);
-
-// Keep the original UFO scale.
-
 
     const ufoBaseScale =
       new THREE.Vector3(
@@ -409,8 +399,6 @@ function Visualizer({
 
     let laserAudioContext = null;
 
-// Beam direction.
-    // Each note can choose a new direction.
     let forwardBeamDirection =
       new THREE.Vector3(0, 0, -1);
     let previousForwardBeamDirection =
@@ -434,11 +422,6 @@ function Visualizer({
         );
 
         scene.add(ufo);
-
-// ------------------------------------------------------------
-        // UFO BEAM
-        // ------------------------------------------------------------
-        // The UFO is scaled down, so the beam uses larger dimensions.
 
         const beamGeometry =
           new THREE.ConeGeometry(
@@ -466,8 +449,6 @@ function Visualizer({
             ufoBeamMaterial
           );
 
-// The cone points downward.
-        // Start it under the UFO.
         ufoBeam.position.set(
           0,
           -115,
@@ -476,7 +457,6 @@ function Visualizer({
 
         ufo.add(ufoBeam);
 
-// Soft glow around the beam.
         const glowGeometry =
           new THREE.ConeGeometry(
             96,
@@ -511,12 +491,6 @@ function Visualizer({
 
         ufo.add(ufoBeamGlow);
 
-// ------------------------------------------------------------
-        // SILVER LASER BEAM
-        // ------------------------------------------------------------
-        // Long beam shooting from the UFO.
-        // Silver/white so it stands out from the UFO.
-
         const forwardBeamLength = 1500;
 
         const forwardGeometry =
@@ -546,14 +520,8 @@ function Visualizer({
             forwardBeamMaterial
           );
 
-// Cylinder points along Y.
-        // Point it toward -Z.
-        // Start near the UFO and follow the chosen direction.
-
-
         ufo.add(forwardBeam);
 
-// Soft glow around the laser.
         const forwardGlowGeometry =
           new THREE.CylinderGeometry(
             2.8,
@@ -614,10 +582,6 @@ function Visualizer({
     let lastFrameTime = 0;
     let smoothedHeld = 0;
 
-// ------------------------------------------------------------
-    // RANDOM UFO EFFECTS
-    // ------------------------------------------------------------
-
     function playLaserSound() {
       try {
         const AudioCtx =
@@ -638,7 +602,6 @@ function Visualizer({
           const start =
             ctx.currentTime;
 
-// Laser sound.
           const osc =
             ctx.createOscillator();
 
@@ -691,7 +654,6 @@ function Visualizer({
           osc.start(start);
           osc.stop(start + 0.25);
 
-// Small high sound.
           const click =
             ctx.createOscillator();
 
@@ -735,9 +697,6 @@ function Visualizer({
           ctx.resume()
             .then(play)
             .catch(() => {
-              // Browser audio may block this sound.
-              // Browser-key input works
-              // after the page is used.
             });
         } else {
           play();
@@ -867,8 +826,6 @@ function Visualizer({
         "laser",
         "beam",
         "jump",
-        "rush",
-        "flyaway",
       ];
 
       randomUfoEffect =
@@ -884,7 +841,6 @@ function Visualizer({
 
       starRushIntensity = 0;
 
-// Turn off old beams first.
       if (ufoBeamMaterial) {
         ufoBeamMaterial.opacity = 0;
       }
@@ -916,208 +872,54 @@ function Visualizer({
         playJumpSound();
       }
 
-      if (
-        randomUfoEffect ===
-        "rush"
-      ) {
-        playRushSound("toward");
-      }
-
-      if (
-        randomUfoEffect ===
-        "flyaway"
-      ) {
-        playRushSound("away");
-      }
     }
 
-    function updateStarRush() {
-      if (!stars || !starMaterial) {
-        return;
-      }
-
-      const isToward =
-        randomUfoEffect === "rush";
-
-      const isAway =
-        randomUfoEffect === "flyaway";
-
-      if (
-        !isToward &&
-        !isAway
-      ) {
-        starRushIntensity +=
-          (0 - starRushIntensity) *
-          0.16;
-
-        stars.scale.x +=
-          (1 - stars.scale.x) *
-          0.12;
-
-        stars.scale.y +=
-          (1 - stars.scale.y) *
-          0.12;
-
-        stars.scale.z +=
-          (1 - stars.scale.z) *
-          0.12;
-
-        starMaterial.size +=
-          (0.5 - starMaterial.size) *
-          0.14;
-
-        return;
-      }
-
-      const elapsed =
-        performance.now() -
-        randomUfoEffectStart;
-
-      const duration = 850;
-
-      const progress =
-        Math.min(
-          1,
-          elapsed / duration
-        );
-
-      const curve =
-        Math.sin(
-          progress * Math.PI
-        );
-
-      starRushIntensity +=
-        (curve - starRushIntensity) *
-        0.22;
-
-// Stars stretch when UFO comes closer.
-
-// Stars contract when UFO moves away.
-      const horizontalStretch =
-        isToward
-          ? 1 +
-            starRushIntensity * 0.24
-          : Math.max(
-              0.82,
-              1 -
-                starRushIntensity * 0.16
-            );
-
-      const depthStretch =
-        isToward
-          ? 1 +
-            starRushIntensity * 1.15
-          : Math.max(
-              0.72,
-              1 -
-                starRushIntensity * 0.42
-            );
-
-      stars.scale.x +=
-        (horizontalStretch -
-          stars.scale.x) *
-        0.18;
-
-      stars.scale.y +=
-        (horizontalStretch -
-          stars.scale.y) *
-        0.18;
-
-      stars.scale.z +=
-        (depthStretch -
-          stars.scale.z) *
-        0.18;
-
-      const targetStarSize =
-        isToward
-          ? 0.5 +
-            starRushIntensity * 1.15
-          : Math.max(
-              0.28,
-              0.5 -
-                starRushIntensity * 0.16
-            );
-
-      starMaterial.size +=
-        (targetStarSize -
-          starMaterial.size) *
-        0.2;
-    }
-
-    function updateUfoRush(time) {
+    function updateVolumeUfoDistance() {
       if (!ufo) return;
 
-      const isToward =
-        randomUfoEffect === "rush";
-      const isAway =
-        randomUfoEffect === "flyaway";
-
-      if (!isToward && !isAway) {
-        ufo.scale.lerp(
-          ufoBaseScale,
-          0.16
-        );
-        return;
-      }
-
-      const elapsed =
-        time -
-        randomUfoEffectStart;
-
-      const duration = 850;
-      const progress =
+      const volume = Math.max(
+        0,
         Math.min(
           1,
-          elapsed / duration
-        );
-
-      const curve =
-        Math.sin(
-          progress * Math.PI
-        );
-
-      const direction =
-        isToward ? 1 : -1;
-
-      ufo.position.x =
-        ufoBasePosition.x;
-      ufo.position.y =
-        ufoBasePosition.y;
-      ufo.position.z =
-        ufoBasePosition.z +
-        curve * 25 * direction;
-
-      const scaleBoost =
-        isToward
-          ? 1 + curve * 1.45
-          : Math.max(
-              0.18,
-              1 - curve * 0.62
-            );
-
-      ufo.scale.set(
-        ufoBaseScale.x * scaleBoost,
-        ufoBaseScale.y * scaleBoost,
-        ufoBaseScale.z * scaleBoost
+          Number(musicVolumeRef.current) || 0
+        )
       );
 
-      ufo.rotation.z =
-        Math.sin(
-          progress * Math.PI
-        ) *
-        (isToward ? 0.16 : -0.12);
+      const baseVolume = 0.1;
+      const control =
+        (volume - baseVolume) /
+        (1 - baseVolume);
 
-      if (progress >= 1) {
-        randomUfoEffect = "none";
-        starRushIntensity = 0;
+      const clampedControl =
+        Math.max(
+          -1,
+          Math.min(1, control)
+        );
 
-        ufo.position.copy(
-          ufoBasePosition
+      const distance =
+        clampedControl * 22;
+
+      ufo.position.z =
+        ufoBasePosition.z -
+        distance;
+
+      const baseScale = 0.65;
+
+      const scale =
+        baseScale -
+        clampedControl * 0.35;
+
+      const safeScale =
+        Math.max(
+          0.35,
+          Math.min(1.05, scale)
         );
-        ufo.scale.copy(
-          ufoBaseScale
-        );
-      }
+
+      ufo.scale.set(
+        ufoBaseScale.x * safeScale,
+        ufoBaseScale.y * safeScale,
+        ufoBaseScale.z * safeScale
+      );
     }
 
     function updateUfoJump(time) {
@@ -1142,7 +944,6 @@ function Visualizer({
           elapsed / duration
         );
 
-// Quick jump and return.
       const jumpHeight =
         Math.sin(
           progress * Math.PI
@@ -1169,8 +970,6 @@ function Visualizer({
         );
       }
     }
-
-// Match beam color to the notes.
 
     function beamColorForNotes(notes) {
       if (!notes || notes.length === 0) {
@@ -1235,10 +1034,6 @@ function Visualizer({
         return;
       }
 
-// Short beam effect.
-
-// RMS adds a small pulse.
-      // The beam still works without Pico audio.
       const elapsed =
         time -
         randomUfoEffectStart;
@@ -1278,7 +1073,6 @@ function Visualizer({
             )
           : 0;
 
-// Smooth fade in/out.
       ufoBeamMaterial.opacity +=
         (targetOpacity -
           ufoBeamMaterial.opacity) *
@@ -1311,7 +1105,6 @@ function Visualizer({
         0.10
       );
 
-// Small movement while active.
       const beamScale =
         0.94 +
         activity * 0.12 +
@@ -1330,14 +1123,6 @@ function Visualizer({
     }
 
     function chooseRandomForwardBeamDirection() {
-      // Pick a random 3D direction.
-      //
-      // The beam is not limited to the front.
-      // It can shoot forward, sideways, up,
-      // down, or behind the UFO.
-      //
-      // Avoid repeating almost the same direction.
-
       let direction;
       let attempts = 0;
 
@@ -1439,7 +1224,6 @@ function Visualizer({
         return;
       }
 
-// Short laser effect.
       const elapsed =
         time -
         randomUfoEffectStart;
@@ -1479,7 +1263,6 @@ function Visualizer({
             )
           : 0;
 
-// Smooth fade.
       forwardBeamMaterial.opacity +=
         (targetOpacity -
           forwardBeamMaterial.opacity) *
@@ -1490,7 +1273,6 @@ function Visualizer({
           forwardBeamGlowMaterial.opacity) *
         0.14;
 
-// Small thickness change.
       const thickness =
         0.94 +
         activity * 0.12 +
@@ -1516,9 +1298,6 @@ function Visualizer({
 
       const t =
         clock.getElapsedTime();
-
-// Keep animation speed consistent across refresh rates.
-
 
       const frameSeconds =
         Math.min(Math.max(t - lastFrameTime, 0), 0.05);
@@ -1552,9 +1331,6 @@ function Visualizer({
           );
       }
 
-
-// Held notes still affect the scene.
-
       const visualHeldNotes = [
         ...new Set([
           ...notesRef.current,
@@ -1562,8 +1338,6 @@ function Visualizer({
         ]),
       ];
 
-// Detect new Pico notes.
-      // Use the same effects as browser keys.
       const previousVisualNotes =
         visualHeldNotesRef.current ?? [];
 
@@ -1592,7 +1366,6 @@ function Visualizer({
       smoothedHeld += (heldTarget - smoothedHeld) * heldBlend;
       const held = smoothedHeld;
 
-// UFO beam.
       updateUfoBeam(
         rms,
         held,
@@ -1609,17 +1382,10 @@ function Visualizer({
         performance.now()
       );
 
-      updateUfoRush(
-        performance.now()
-      );
-
-      updateStarRush();
-
       const starSpeed =
         0.0005 +
         rms * 0.003 +
         held * 0.0016;
-
 
       starGroup.rotation.y +=
         starSpeed * frameScale;
@@ -1629,7 +1395,6 @@ function Visualizer({
           rms * 0.001 +
           held * 0.0006) *
         frameScale;
-
 
       if (
         photoStarRef.current
@@ -1785,10 +1550,8 @@ function Visualizer({
             ufo.rotation.y +=
               0.02 * frameScale;
 
-
             starGroup.rotation.y +=
               0.002 * frameScale;
-
 
             if (
               progress >= 1
@@ -1848,10 +1611,8 @@ function Visualizer({
             ufo.rotation.y +=
               0.02 * frameScale;
 
-
             starGroup.rotation.y +=
               0.002 * frameScale;
-
 
             if (
               progress >= 1
@@ -1898,7 +1659,7 @@ function Visualizer({
           ufoBasePosition.x =
             0;
 
-          ufoBasePosition.y =
+          ufoBasePosition.y = 0.5 +
             Math.sin(
               t * 0.8
             ) *
@@ -1910,11 +1671,7 @@ function Visualizer({
 
           if (
             randomUfoEffect !==
-              "jump" &&
-            randomUfoEffect !==
-              "rush" &&
-            randomUfoEffect !==
-              "flyaway"
+              "jump"
           ) {
             ufo.position.x =
               ufoBasePosition.x;
@@ -1928,14 +1685,9 @@ function Visualizer({
 
           if (
             randomUfoEffect !==
-              "rush" &&
-            randomUfoEffect !==
-              "flyaway"
+              "jump"
           ) {
-            ufo.scale.lerp(
-              ufoBaseScale,
-              0.12
-            );
+            updateVolumeUfoDistance();
           }
 
           ufo.rotation.x *=
@@ -1951,10 +1703,6 @@ function Visualizer({
               rms * 0.01 +
               held * 0.02) *
             frameScale;
-
-// Keep the original UFO material.
-          // Music drives the beam instead of the UFO color.
-
 
         }
       }

@@ -1,3 +1,8 @@
+Library
+/
+App_BGM_10Percent_Baseline.jsx
+
+
 import "./App.css";
 import { useRef, useState, useEffect } from "react";
 import * as Tone from "tone";
@@ -29,9 +34,6 @@ function App() {
     delay.current = new Tone.FeedbackDelay("8n", 0.4);
     analyzer.current = new Tone.Analyser("waveform", 256);
 
-    // Keep the existing audio chain and analyser intact.
-    // The web synth uses the same release behavior as the Pico:
-    // 110 ms normally, with Keyboard switching it to 2.6 s for Sustain.
     synth.current = new Tone.PolySynth(Tone.Synth, {
       envelope: {
         attack: 0.01,
@@ -53,7 +55,6 @@ function App() {
   const [activeNotes, setActiveNotes] = useState([]);
   const [apiOnline, setApiOnline] = useState(null);
 
-  // Damper pedal. Either the GP20 switch or the on-screen toggle.
   const [sustain, setSustain] = useState(false);
 
   const [picoEcho, setPicoEcho] = useState(false);
@@ -62,8 +63,6 @@ function App() {
 
   const [songProgress, setSongProgress] = useState(0);
 
-  // Each section has its own hash URL. The UFO visualizer stays mounted behind
-  // every view, while the keyboard remains exclusive to the Perform page.
   const [page, setPage] = useState(pageFromHash);
 
   useEffect(() => {
@@ -128,13 +127,10 @@ function App() {
     spread
   );
 
-  // A board plugged into ANOTHER computer, reaching us through the mirror.
-  // Kept apart from picoConnected, which means "this browser owns the port".
   const [mirrored, setMirrored] = useState(false);
 
   const serialRef = useRef(null);
   const bridgeRef = useRef(null);
-  // mirror of activeNotes for use inside serial callbacks
   const activeNotesRef = useRef([]);
 
   useEffect(() => {
@@ -385,9 +381,6 @@ function App() {
       return;
     }
 
-    // Published by whichever machine owns the serial port, so viewers on
-    // other computers can show the board as connected rather than sitting
-    // on "Disconnected" while someone is clearly playing it.
     const linkMatch = line.match(/^PICO_LINK_(ON|OFF)$/);
     if (linkMatch) {
       const up = linkMatch[1] === "ON";
@@ -398,15 +391,8 @@ function App() {
       return;
     }
 
-    // TRACK_* lines are ignored. Backing tracks play through the computer's
-    // speakers now, so the board's own player is never asked to start and
-    // the progress bar is driven by the browser's audio element instead.
-    // PICO_READY and any debug lines land here too.
   };
 
-  // handleLine closes over current state, so it is rebuilt every render. The
-  // bridge is created once, so it calls through this ref rather than
-  // capturing a stale copy.
   const handleLineRef = useRef(null);
   handleLineRef.current = handleLine;
 
@@ -414,16 +400,11 @@ function App() {
     const bridge = new PicoBridge({
       onLine: (line) => handleLineRef.current?.(line),
       onStatus: (up) => {
-        // Losing the hub tells us nothing about a board on another machine,
-        // so stop claiming one is there.
         if (!up) {
           setMirrored(false);
           return;
         }
 
-        // A reconnect may have missed any number of NOTE_ON/OFF messages.
-        // Reclaim the publisher role and replace the hub's held-note set with
-        // one authoritative snapshot from the serial-owning browser.
         if (picoConnectedRef.current) {
           bridge.publish("PICO_LINK_ON");
           bridge.publish(
@@ -453,8 +434,6 @@ function App() {
 
     try {
       serialRef.current = new PicoSerial({
-        // Handle it here, then hand the same line to every other computer
-        // watching, so their pages stay identical to this one.
         onLine: (line) => {
           handleLine(line);
           bridgeRef.current?.publish(line);
@@ -487,8 +466,6 @@ function App() {
     serialRef.current?.disconnect();
   };
 
-  // Retune the instrument whenever the key, octave or button layout changes,
-  // so the physical buttons always play the scale shown on screen.
   const tuneCommand =
     "TUNE_" +
     picoNotes.join("_");
@@ -516,6 +493,7 @@ function App() {
           analyzer={analyzer}
           activeNotes={activeNotes}
           currentPage="team"
+          musicVolume={musicVolume}
         />
 
         <TeamPage
@@ -533,6 +511,7 @@ function App() {
         analyzer={analyzer}
         activeNotes={activeNotes}
         currentPage="instrument"
+        musicVolume={musicVolume}
       />
 
       <div className="top-progress">
@@ -676,10 +655,7 @@ function App() {
                   : "Disconnected"}
             </span>
 
-            {/* Web Serial needs a secure context, so it exists on localhost
-                and not over a plain http:// IP. Offering the button to a
-                viewer would only produce an error, so they get the mirror
-                instead. */}
+            {}
             {isSerialSupported() ? (
               <button
                 className="connect-btn"
