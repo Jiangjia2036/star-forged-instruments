@@ -68,18 +68,14 @@ function TeamPage({ onBack }) {
           </p>
         </section>
 
-        <section className="team-photo-section">
-          <div className="team-photo-placeholder">
-            <span>
-              TEAM PHOTO
-            </span>
-
-            <p>
-              Our team photo will go
-              here
-            </p>
-          </div>
-        </section>
+          <section className="team-photo-section">
+            <div className="team-photo-placeholder">
+              <img
+                src="/photos/UCLA_HACK2026_StarForged.JPG"
+                alt="Star Forged team"
+              />
+            </div>
+          </section>
 
         <section className="members-section">
           <div className="section-heading">

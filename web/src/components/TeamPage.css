@@ -1,6 +1,6 @@
 /* ============================================================
-   Team Page
-   ============================================================ */
+Team Page
+============================================================ */
 
 .team-page {
   width: 100%;
@@ -149,55 +149,27 @@
 
 .team-photo-placeholder {
   width: 100%;
-
-  height: 320px;
+  height: 500px;
 
   display: flex;
-
-  flex-direction: column;
-
   align-items: center;
-
   justify-content: center;
 
   box-sizing: border-box;
 
-  background: var(--panel);
-
-  border:
-    1px solid
-    var(--panel-line);
-
-  border-radius:
-    var(--radius);
-
-  backdrop-filter:
-    blur(20px);
-
-  -webkit-backdrop-filter:
-    blur(20px);
-
-  box-shadow:
-    0 24px 60px
-    rgba(0, 0, 0, 0.35);
+  overflow: hidden;
 }
 
-.team-photo-placeholder span {
-  font-size: 18px;
+.team-photo-placeholder img {
+  width: 92%;
+  max-width: 1200px;
+  max-height: 440px;
 
-  font-weight: 700;
+  object-fit: contain;
 
-  letter-spacing: 3px;
+  display: block;
 
-  color: var(--text);
-}
-
-.team-photo-placeholder p {
-  margin: 10px 0 0;
-
-  color: var(--faint);
-
-  font-size: 12px;
+  border-radius: 16px;
 }
 
 .members-section {
@@ -423,10 +395,9 @@
   border-radius: 999px;
 }
 
-
 /* ============================================================
-   Team Page Entrance Animation
-   ============================================================ */
+Team Page Entrance Animation
+============================================================ */
 
 @keyframes teamPageFadeIn {
   from {
@@ -488,13 +459,11 @@
   }
 }
 
-
 /* ============================================================
-   Team Page Responsive
-   ============================================================ */
+Team Page Responsive
+============================================================ */
 
 @media (max-width: 720px) {
-
   .team-page {
     padding:
       0 14px 40px;
@@ -520,7 +489,12 @@
   }
 
   .team-photo-placeholder {
-    height: 240px;
+    height: 280px;
+  }
+
+  .team-photo-placeholder img {
+    width: 94%;
+    max-height: 250px;
   }
 
   .members-grid {
