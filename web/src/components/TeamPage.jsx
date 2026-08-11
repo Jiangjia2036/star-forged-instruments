@@ -4,7 +4,7 @@ function TeamPage({ onBack }) {
   const teamMembers = [
     {
       name: "Ethan Summers",
-      role: "Hardware / Pico", 
+      role: "Circuit design / Soldering / Assembly", 
       description:
         "Hello! I'm Ethan Summers and I am majoring in Mechanical Engineering. I'm a transfer from West Valley Community College from San Jose. I hope you enjoy our interstellar instrument! ",
       image:
@@ -12,7 +12,7 @@ function TeamPage({ onBack }) {
     },
     {
       name: "Grayson Pressutti",
-      role: "CAD / Design",
+      role: "CAD Design / Assembly",
       description:
         "Hi, I'm Grayson Pressutti! I'm a mechanical engineering major transferring from Clovis Community College in Fresno. I'm a percussionist, and I've been getting better at art and music production in my spare time!",
       image:
@@ -20,7 +20,7 @@ function TeamPage({ onBack }) {
     },
     {
       name: "Alejandro Padilla",
-      role: "Web Integration / Pico Code / Larper",
+      role: "Web-Pico Integration / Code Design",
       description:
         "My name is Alejandro Padilla, I'm a transfer from Mt. San Antonio College. I am currently majoring in Electrical Engineering. Currently what I like to do is larp on insta & Linkedin and mostly doing whatever is interesting.",
       image:
@@ -28,7 +28,7 @@ function TeamPage({ onBack }) {
     },
     {
       name: "Jiaxiong Jiang",
-      role: "3D / Visuals",
+      role: "Website / Graphic Design",
       description:
         "My name is Jiaxiong Jiang, a transfer from Skyline college which locate in Bay Area. I am majoring in Computer engineering. I like to play games and play the guitar in my free time.",
       image:
